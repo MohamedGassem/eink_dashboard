@@ -1,0 +1,51 @@
+{
+  "last_updated": "2026-09-02T17:37:16.148Z",
+  "ttl": 1,
+  "version": "3.0",
+  "data": {
+    "stations": [
+      {
+        "station_id": "1032",
+        "num_vehicles_available": 12,
+        "vehicle_types_available": [
+          {"vehicle_type_id": "mechanical", "count": 8},
+          {"vehicle_type_id": "electrical", "count": 4}
+        ],
+        "num_vehicles_disabled": 1,
+        "num_docks_available": 7,
+        "num_docks_disabled": 0,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true,
+        "last_reported": "2026-09-02T17:36:00Z"
+      },
+      {
+        "station_id": "1024",
+        "num_vehicles_available": 5,
+        "vehicle_types_available": [
+          {"vehicle_type_id": "mechanical", "count": 0},
+          {"vehicle_type_id": "electrical", "count": 5}
+        ],
+        "num_vehicles_disabled": 5,
+        "num_docks_available": 7,
+        "num_docks_disabled": 0,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true,
+        "last_reported": "2026-09-02T16:47:33Z"
+      },
+      {
+        "station_id": "1",
+        "num_vehicles_available": 0,
+        "vehicle_types_available": [],
+        "num_vehicles_disabled": 0,
+        "num_docks_available": 0,
+        "num_docks_disabled": 0,
+        "is_installed": false,
+        "is_renting": false,
+        "is_returning": false,
+        "last_reported": "2025-07-15T07:41:26Z"
+      }
+    ]
+  }
+}

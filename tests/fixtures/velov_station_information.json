@@ -1,0 +1,25 @@
+{
+  "last_updated": "2026-09-02T17:37:16.836Z",
+  "ttl": 300,
+  "version": "3.0",
+  "data": {
+    "stations": [
+      {
+        "station_id": "1032",
+        "name": [{"text": "PIZAY", "language": "fr"}],
+        "lat": 45.767,
+        "lon": 4.836,
+        "address": "Rue Pizay",
+        "capacity": 20
+      },
+      {
+        "station_id": "1024",
+        "name": [{"text": "ROUVILLE", "language": "fr"}],
+        "lat": 45.769684,
+        "lon": 4.824607,
+        "address": "PLACE ROUVILLE",
+        "capacity": 17
+      }
+    ]
+  }
+}
