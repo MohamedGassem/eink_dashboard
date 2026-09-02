@@ -3470,3 +3470,47 @@ aligné sur les deltas P0 et phase 2 :
 - `/health` et `/api/v1/dashboard` réels consomment `status_at` — c'est la
   Task 9.
 - Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+
+---
+
+## Delta phase 4 — `/health` détaillé et `/api/v1/dashboard` (Task 9), exécuté le 2026-09-02
+
+Livré sur `feat/p4-api`. 81 tests (2 réseau désélectionnés), `mypy --strict` et
+`ruff` propres. `docker compose up -d --build` : conteneur `healthy`, `/health`
+et `/api/v1/dashboard` renvoient les deux sources avec des passages TCL et des
+stations Vélo'v réels. Écarts par rapport au texte de la Task 9, aligné sur les
+deltas P0 / phase 2 / phase 3 :
+
+### Task 9 — service `services/dashboard.py`
+
+- `provider_health(result, now, stale_after_seconds)` : le statut vient de
+  `ProviderResult.status_at` (delta §16.1), pas d'un champ stocké. Clés du bloc :
+  `status` (`ok` / `degraded` / `stale` / `unavailable`), `age_seconds`,
+  `last_success_at`, `source_updated_at`, `last_attempt_at`, `last_error`. Les
+  `status` / `updated_at` / `error` du texte de la task sont abandonnés.
+- Nouvelle constante `STALE_INTERVAL_FACTOR = 3` : le seuil de fraîcheur d'un
+  fournisseur est `refresh_seconds * 3` (spec §8 « trois fois l'intervalle »),
+  calculé par la route à partir de `Settings`. TCL et Vélo'v peuvent diverger.
+- `dashboard_payload(state, now, *, tcl_stale_after_seconds,
+  velov_stale_after_seconds)` : bloc `tcl` = santé + `stops[]`
+  (`stop_name`, `available`, `departures[]` avec `minutes` dérivé), bloc `velov`
+  = santé + `stations[]` (`asdict(BikeStation)` + `reported_at` ISO).
+  `StopBoard.available` est exposé tel quel (marqueur de fraîcheur par bloc).
+
+### Task 9 — routes
+
+- `/health` et `/api/v1/dashboard` consomment `StoreDep` / `SettingsDep` /
+  `TzDep` (phase 3) au lieu de lire `request.app.state` directement. `now =
+  datetime.now(tz)`.
+- `/health` garde son enveloppe `{"status": "ok", "providers": {...}}` : le
+  `status` racine reste `ok` tant que le process répond, le détail par
+  fournisseur porte l'état réel. `/health/live` inchangé.
+- `main.py` : `app.include_router(dashboard_routes.router)`.
+- `tests/unit/test_health.py` : le test `/health` sur l'app réelle (sans
+  lifespan, donc sans `app.state.store`) est retiré ; `test_api_dashboard.py`
+  couvre `/health` en montant l'état à la main, comme le reste des phases.
+
+### Reste ouvert après phase 4
+
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+- ViewModel textuel et rendu Pillow — Tasks 10-11.

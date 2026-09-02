@@ -1,0 +1,66 @@
+from dataclasses import asdict
+from datetime import datetime
+from typing import Any
+
+from eink_dashboard.state import DashboardState, ProviderResult
+
+# La spec §8 bascule un fournisseur en ``stale`` au-delà de trois fois son
+# intervalle de rafraîchissement. Chaque fournisseur porte le sien.
+STALE_INTERVAL_FACTOR = 3
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def provider_health(
+    result: ProviderResult[Any], now: datetime, stale_after_seconds: float
+) -> dict[str, Any]:
+    return {
+        "status": result.status_at(now, stale_after_seconds),
+        "age_seconds": result.age_seconds(now),
+        "last_success_at": _iso(result.last_success_at),
+        "source_updated_at": _iso(result.source_updated_at),
+        "last_attempt_at": _iso(result.last_attempt_at),
+        "last_error": result.last_error,
+    }
+
+
+def dashboard_payload(
+    state: DashboardState,
+    now: datetime,
+    *,
+    tcl_stale_after_seconds: float,
+    velov_stale_after_seconds: float,
+) -> dict[str, Any]:
+    boards = state.tcl.data or ()
+    stations = state.velov.data or ()
+    return {
+        "tcl": {
+            **provider_health(state.tcl, now, tcl_stale_after_seconds),
+            "stops": [
+                {
+                    "stop_name": board.stop_name,
+                    "available": board.available,
+                    "departures": [
+                        {
+                            "line": departure.line,
+                            "direction": departure.direction,
+                            "expected_at": departure.expected_at.isoformat(),
+                            "minutes": departure.minutes_until(now),
+                            "is_realtime": departure.is_realtime,
+                        }
+                        for departure in board.departures
+                    ],
+                }
+                for board in boards
+            ],
+        },
+        "velov": {
+            **provider_health(state.velov, now, velov_stale_after_seconds),
+            "stations": [
+                {**asdict(station), "reported_at": station.reported_at.isoformat()}
+                for station in stations
+            ],
+        },
+    }
