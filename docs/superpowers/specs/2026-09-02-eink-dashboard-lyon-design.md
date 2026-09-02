@@ -488,3 +488,23 @@ par un mapper : TCL arrive en phase 2.
 `docker compose up -d --build` puis `curl http://localhost:8000/health` → `200`
 `{"status":"ok"}`, conteneur `healthy` (le `HEALTHCHECK` interne passe). Vérifié
 le 2026-09-02, enfin exécuté sur une machine avec un daemon Docker actif.
+
+### 16.7 Contrat de `/health` et `/api/v1/dashboard` (§9, phase 4)
+
+Implémenté en phase 4 (`services/dashboard.py`).
+
+- Seuil de fraîcheur d'un fournisseur = `*_REFRESH_SECONDS × 3` (§8, « trois fois
+  l'intervalle »), passé à `ProviderResult.status_at`. Constante
+  `STALE_INTERVAL_FACTOR = 3`.
+- `/health` → `{"status": "ok", "providers": {"tcl": <bloc>, "velov": <bloc>}}`.
+  `status` racine toujours `ok` tant que le process répond (le détail par
+  fournisseur porte l'état réel) ; `/health/live` reste la sonde de liveness pure.
+- Bloc de santé par fournisseur : `status` (`ok` / `degraded` / `stale` /
+  `unavailable`, §16.1), `age_seconds`, `last_success_at`, `source_updated_at`,
+  `last_attempt_at`, `last_error`. Remplace le `{status, updated_at, age_seconds}`
+  du §9.
+- `/api/v1/dashboard` → même bloc de santé par source, plus `tcl.stops[]`
+  (`stop_name`, `available`, `departures[]` = `line` / `direction` /
+  `expected_at` / `minutes` / `is_realtime`) et `velov.stations[]`
+  (champs de `BikeStation`, `reported_at` en ISO). Sans données : listes vides,
+  statut `unavailable`.

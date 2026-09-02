@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import FastAPI
 
+from eink_dashboard.api.routes import dashboard as dashboard_routes
 from eink_dashboard.api.routes import health
 from eink_dashboard.core.config import (
     get_settings,
@@ -76,3 +77,4 @@ configure_logging()
 
 app = FastAPI(title="eink-dashboard", lifespan=lifespan)
 app.include_router(health.router)
+app.include_router(dashboard_routes.router)
