@@ -6,7 +6,9 @@ import pytest
 import respx
 
 from eink_dashboard.core.config import VelovStation
+from eink_dashboard.providers.base import ProviderError
 from eink_dashboard.providers.velov.client import INFORMATION_URL, STATUS_URL, VelovClient
+from eink_dashboard.providers.velov.schemas import StationStatusFeed
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 STATUS = json.loads((FIXTURES / "velov_station_status.json").read_text(encoding="utf-8"))
@@ -20,11 +22,40 @@ async def test_fetch_returns_domain_objects() -> None:
     respx.get(INFORMATION_URL).mock(return_value=httpx.Response(200, json=INFORMATION))
 
     async with httpx.AsyncClient() as http:
-        stations = await VelovClient(http, CONFIGURED).fetch()
+        snapshot = await VelovClient(http, CONFIGURED).fetch()
 
+    stations = snapshot.data
     assert len(stations) == 1
     assert stations[0].label == "Pizay"
     assert stations[0].bikes_available == 12
+    assert snapshot.source_updated_at == stations[0].reported_at
+
+
+@respx.mock
+async def test_source_timestamp_uses_the_oldest_configured_station_report() -> None:
+    respx.get(STATUS_URL).mock(return_value=httpx.Response(200, json=STATUS))
+    respx.get(INFORMATION_URL).mock(return_value=httpx.Response(200, json=INFORMATION))
+    configured = [
+        VelovStation(station_id="1032", label="Pizay"),
+        VelovStation(station_id="1024", label="Rouville"),
+    ]
+
+    async with httpx.AsyncClient() as http:
+        snapshot = await VelovClient(http, configured).fetch()
+
+    assert snapshot.source_updated_at == min(station.reported_at for station in snapshot.data)
+    assert snapshot.source_updated_at < StationStatusFeed.model_validate(STATUS).last_updated
+
+
+@respx.mock
+async def test_missing_configured_station_is_not_silently_dropped() -> None:
+    respx.get(STATUS_URL).mock(return_value=httpx.Response(200, json=STATUS))
+    respx.get(INFORMATION_URL).mock(return_value=httpx.Response(200, json=INFORMATION))
+    configured = [VelovStation(station_id="missing", label="Absente")]
+
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(ProviderError, match="missing"):
+            await VelovClient(http, configured).fetch()
 
 
 @respx.mock

@@ -10,6 +10,6 @@ class BikeStation:
     bikes_mechanical: int
     bikes_electric: int
     docks_available: int
-    capacity: int
+    capacity: int | None
     is_renting: bool
     reported_at: datetime

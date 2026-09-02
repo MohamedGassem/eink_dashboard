@@ -3305,3 +3305,85 @@ git commit -m "feat: cadence de reveil adaptative selon l heure"
 **Point non vérifiable à l'avance.** Les noms de champs de `tcl_sytral.tclpassagearret` sont derrière authentification. La Task 6 les capture, les documente, et les enferme dans la constante `TCL_FIELDS`, gardée par un test qui échoue si la table diverge de la réalité. C'est le seul endroit de la base de code qui dépend du format brut de TCL.
 
 **Deux inconnues firmware** sont levées à la Task 12, Step 6 : configuration d'une URL de serveur personnalisée, et valeur attendue du champ `status` sur `/api/display`. Les deux ont un plan de repli explicite.
+
+---
+
+## Delta post-exécution — correctifs P0 après phases 0 et 1
+
+Les phases 0 et 1 (Tasks 1 à 5) sont fusionnées sur `main` (`b096eb3`). Une
+auto-revue du code livré a produit une liste de findings ; les correctifs **P0**
+sont appliqués et couverts par 15 tests supplémentaires (43 tests au total,
+`mypy --strict` et `ruff` propres, `docker compose up` + `/health` 200 vérifié).
+Cette section est un plan delta : elle décrit ce qui a changé par rapport au
+texte des tasks ci-dessus, qui n'est pas réécrit. La spec porte le même delta
+en section 16 et fait foi.
+
+### Task 1 — squelette, `/health`, Docker
+
+- Ajout de `GET /health/live` (liveness pure). Le `HEALTHCHECK` du `Dockerfile`
+  cible `/health/live` au lieu de `/health`, pour qu'un fournisseur dégradé ne
+  passe pas le conteneur en `unhealthy`.
+- `.dockerignore` ajouté (`.env`, `.git`, `.venv`, caches, `.claude/`,
+  `.superpowers/`).
+- `tzdata` ajouté aux dépendances **runtime** de `pyproject.toml` : requis pour
+  `zoneinfo` dans `python:3.12-slim` et sous Windows.
+- `README.md` : commande de création de `.env` donnée pour PowerShell et pour
+  WSL/Linux.
+- Critère Docker de la phase 0 enfin exécuté sur une machine avec daemon actif :
+  build OK, conteneur `healthy`, `/health` → `200 {"status":"ok"}`.
+
+### Task 2 — configuration
+
+- `TclStop` / `VelovStation` / `DashboardConfig` validés : chaînes non vides,
+  identifiants uniques, et plafonds au gabarit V1 (≤ 2 arrêts TCL, ≤ 2 lignes et
+  ≤ 2 directions par arrêt, ≤ 2 stations Vélo'v).
+- `Settings` : `TZ` validé contre `zoneinfo`, `DEVICE_MAC` validé comme adresse
+  MAC quand renseigné, `*_REFRESH_SECONDS` contraints `> 0`.
+- Nouvelle fonction `validate_runtime_requirements(settings, config, *,
+  device_enabled)` : échec tôt si TCL configuré sans identifiants Grand Lyon, ou
+  API appareil active sans `DEVICE_MAC` / `DEVICE_API_KEY`. Définie en Task 2,
+  câblée au lifespan en Task 8 (phase 3).
+
+### Task 3 — domaine, état, protocole fournisseur
+
+- **`ProviderResult` / `Store` refondus.** Statuts calculés à la lecture via
+  `status_at(now, stale_after_seconds)` ; plus de `mark_stale_if_old` mutant.
+  Statuts : `ok` / `degraded` / `stale` / `unavailable` (voir spec §16.1).
+  Champs : `last_attempt_at`, `last_success_at`, `source_updated_at`,
+  `last_error`.
+- `record_success` prend un `source_updated_at` optionnel ; `age_seconds` s'y
+  réfère en priorité (âge réel de la donnée, pas de notre poll).
+- **Ruling #4 du plan levée** : chaque fournisseur passe son propre seuil de
+  fraîcheur. La Task 8 consommera `status_at`, elle n'implémente plus de
+  bascule stale globale.
+- `providers/base.py` : ajout de `ProviderError` (échec opérationnel attendu) et
+  de `ProviderSnapshot[T]` (`data` + `source_updated_at`). `Provider.fetch()`
+  renvoie `ProviderSnapshot[T]`.
+- `domain/transit.py` : `StopBoard.available: bool = True` — distingue « aucun
+  passage » de « arrêt non récupéré ». Produit par le mapper TCL en Task 6.
+- `domain/bikes.py` : `capacity: int | None`.
+
+### Task 4 — schémas et mapper Vélo'v
+
+- Schémas GBFS : `AwareDatetime` et champs **requis** (suppression des défauts
+  permissifs). Un payload incomplet lève `ValidationError` — comportement voulu
+  par la spec §8.
+- `capacity: int | None` dans les schémas et le mapper ; fallback `None` (pas
+  `0`) quand la station est absente du référentiel.
+
+### Task 5 — client Vélo'v
+
+- `VelovClient.fetch()` renvoie `ProviderSnapshot[tuple[BikeStation, ...]]`.
+- Lève `ProviderError` si une station configurée est absente du flux de statut
+  (au lieu de la faire disparaître silencieusement).
+- `source_updated_at` calculé à partir du `last_reported` le plus ancien parmi
+  les stations retournées, à défaut `status.last_updated`.
+- Test live réseau (`-m network`) re-vérifié contre `api.cyclocity.fr` : les
+  schémas stricts parsent le vrai flux GBFS v3.
+
+### Reste ouvert (non P0, non bloquant)
+
+- `validate_runtime_requirements` et `status_at` sont définis mais pas encore
+  câblés — c'est le travail de la phase 3 (Task 8).
+- `StopBoard.available` n'est pas encore positionné à `False` par un mapper —
+  Task 6.

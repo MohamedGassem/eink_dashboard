@@ -31,7 +31,7 @@ def to_bike_stations(
                 bikes_mechanical=counts.get(MECHANICAL, 0),
                 bikes_electric=counts.get(ELECTRICAL, 0),
                 docks_available=live.num_docks_available,
-                capacity=reference.capacity if reference else 0,
+                capacity=reference.capacity if reference else None,
                 is_renting=live.is_renting and live.is_installed,
                 reported_at=live.last_reported,
             )

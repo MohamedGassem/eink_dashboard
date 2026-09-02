@@ -5,21 +5,35 @@ from typing import Any, Literal
 from eink_dashboard.domain.bikes import BikeStation
 from eink_dashboard.domain.transit import StopBoard
 
-ProviderStatus = Literal["ok", "stale", "error", "unknown"]
+ProviderStatus = Literal["ok", "degraded", "stale", "unavailable"]
 
 
 @dataclass(slots=True)
 class ProviderResult[T]:
     name: str
-    status: ProviderStatus = "unknown"
     data: T | None = None
-    updated_at: datetime | None = None
-    error: str | None = None
+    last_attempt_at: datetime | None = None
+    last_success_at: datetime | None = None
+    source_updated_at: datetime | None = None
+    last_error: str | None = None
 
     def age_seconds(self, now: datetime) -> float | None:
-        if self.updated_at is None:
+        freshness_at = self.source_updated_at or self.last_success_at
+        if freshness_at is None:
             return None
-        return (now - self.updated_at).total_seconds()
+        return (now - freshness_at).total_seconds()
+
+    def status_at(self, now: datetime, stale_after_seconds: float) -> ProviderStatus:
+        if stale_after_seconds <= 0:
+            raise ValueError("le seuil de fraîcheur doit être strictement positif")
+        if self.data is None or self.last_success_at is None:
+            return "unavailable"
+        age = self.age_seconds(now)
+        if age is not None and age > stale_after_seconds:
+            return "stale"
+        if self.last_error is not None:
+            return "degraded"
+        return "ok"
 
 
 @dataclass(slots=True)
@@ -46,21 +60,22 @@ class Store:
             raise KeyError(f"fournisseur inconnu: {name}")
         return slot  # type: ignore[no-any-return]
 
-    def record_success(self, name: str, data: object, now: datetime) -> None:
+    def record_success(
+        self,
+        name: str,
+        data: object,
+        now: datetime,
+        *,
+        source_updated_at: datetime | None = None,
+    ) -> None:
         slot = self._slot(name)
         slot.data = data
-        slot.status = "ok"
-        slot.updated_at = now
-        slot.error = None
+        slot.last_attempt_at = now
+        slot.last_success_at = now
+        slot.source_updated_at = source_updated_at
+        slot.last_error = None
 
     def record_failure(self, name: str, error: str, now: datetime) -> None:
         slot = self._slot(name)
-        slot.status = "error"
-        slot.error = error
-
-    def mark_stale_if_old(self, now: datetime, max_age_seconds: float) -> None:
-        for name in ("tcl", "velov"):
-            slot = self._slot(name)
-            age = slot.age_seconds(now)
-            if slot.status == "ok" and age is not None and age > max_age_seconds:
-                slot.status = "stale"
+        slot.last_attempt_at = now
+        slot.last_error = error

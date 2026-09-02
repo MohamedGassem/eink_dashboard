@@ -18,3 +18,4 @@ class Departure:
 class StopBoard:
     stop_name: str
     departures: tuple[Departure, ...]
+    available: bool = True

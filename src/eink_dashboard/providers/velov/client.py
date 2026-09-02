@@ -5,6 +5,7 @@ import httpx
 
 from eink_dashboard.core.config import VelovStation
 from eink_dashboard.domain.bikes import BikeStation
+from eink_dashboard.providers.base import ProviderError, ProviderSnapshot
 from eink_dashboard.providers.velov.mapper import to_bike_stations
 from eink_dashboard.providers.velov.schemas import StationInformationFeed, StationStatusFeed
 
@@ -42,9 +43,21 @@ class VelovClient:
         self._information_fetched_at = now
         return feed
 
-    async def fetch(self) -> tuple[BikeStation, ...]:
+    async def fetch(self) -> ProviderSnapshot[tuple[BikeStation, ...]]:
         information = await self._information_feed()
         response = await self._http.get(STATUS_URL)
         response.raise_for_status()
         status = StationStatusFeed.model_validate_json(response.content)
-        return to_bike_stations(status, information, self._stations)
+        stations = to_bike_stations(status, information, self._stations)
+        returned_ids = {station.station_id for station in stations}
+        missing_ids = [
+            station.station_id
+            for station in self._stations
+            if station.station_id not in returned_ids
+        ]
+        if missing_ids:
+            raise ProviderError(f"stations Vélo'v absentes du statut: {', '.join(missing_ids)}")
+        source_updated_at = min(
+            (station.reported_at for station in stations), default=status.last_updated
+        )
+        return ProviderSnapshot(data=stations, source_updated_at=source_updated_at)

@@ -9,7 +9,9 @@ from eink_dashboard.providers.velov.client import VelovClient
 async def test_live_velov_returns_configured_station() -> None:
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as http:
         client = VelovClient(http, [VelovStation(station_id="1024", label="Rouville")])
-        stations = await client.fetch()
+        snapshot = await client.fetch()
 
+    stations = snapshot.data
     assert len(stations) == 1
+    assert stations[0].capacity is not None
     assert stations[0].capacity > 0

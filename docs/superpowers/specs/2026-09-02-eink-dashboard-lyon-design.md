@@ -398,3 +398,93 @@ matériel.
 - Services Data Grand Lyon — https://rdata-grandlyon.readthedocs.io/fr/latest/services.html
 - Réseau TCL sur transport.data.gouv.fr — https://transport.data.gouv.fr/datasets/horaires-theoriques-du-reseau-transports-en-commun-lyonnais
 - GBFS Vélo'v — https://transport.data.gouv.fr/datasets/stations-velov-de-la-metropole-de-lyon-disponibilites-temps-reel
+
+## 16. Delta post-exécution — correctifs P0 (phases 0 et 1)
+
+Écrit après la fusion des phases 0 et 1 et une auto-revue du code livré. Ces
+correctifs P0 sont appliqués ; ils modifient des décisions prises plus haut. Le
+corps du document n'est pas réécrit : cette section fait foi en cas de
+divergence.
+
+### 16.1 Modèle de statut par fournisseur (§9, §8)
+
+La spec annonçait trois statuts `ok` / `stale` / `error`. L'implémentation en
+retient quatre, et les calcule à la lecture au lieu de les stocker :
+
+| Statut | Sens |
+|---|---|
+| `ok` | Données présentes, fraîches, dernier appel réussi |
+| `degraded` | Dernier appel en échec, mais un état antérieur valide est toujours servi |
+| `stale` | Données plus vieilles que le seuil de fraîcheur du fournisseur |
+| `unavailable` | Aucune donnée valide n'a jamais été obtenue |
+
+- `error` est abandonné : la boucle survit et le dernier bon état est toujours
+  conservé, donc « en échec » ne signifie jamais « sans données ». `degraded`
+  décrit la situation réelle.
+- `unknown` (jamais peuplé) est fusionné dans `unavailable`.
+- `ProviderResult.status_at(now, stale_after_seconds)` remplace la méthode
+  mutante `mark_stale_if_old`. Le seuil est un paramètre d'appel : chaque
+  fournisseur utilise le sien, `TCL_REFRESH_SECONDS` et `VELOV_REFRESH_SECONDS`
+  peuvent diverger (lève le point ouvert « seuil unique » du plan).
+- `age_seconds` se base en priorité sur l'horodatage **source**
+  (`last_reported` / `last_updated` du flux) et non sur l'heure de notre appel :
+  « stale » reflète l'âge réel de la donnée.
+- Conséquence sur le JSON `/health` du §9 : les champs deviennent
+  `last_success_at`, `source_updated_at`, `last_attempt_at`, `last_error`,
+  plus le statut calculé.
+
+### 16.2 Séparation liveness / readiness (§9)
+
+Nouvel endpoint `GET /health/live` : liveness pure, renvoie toujours
+`{"status": "ok"}` tant que le process répond. `/health` garde le détail par
+fournisseur. Le `HEALTHCHECK` Docker cible désormais `/health/live`, pour qu'un
+fournisseur `degraded` ou `stale` ne fasse pas passer le conteneur en
+`unhealthy`.
+
+### 16.3 Contrat fournisseur durci (§3.1, §7, §8)
+
+- `Provider.fetch()` renvoie `ProviderSnapshot[T]` (données +
+  `source_updated_at`) au lieu de `T` nu, pour que le scheduler enregistre la
+  fraîcheur amont.
+- Nouvelle exception `ProviderError` pour les échecs opérationnels attendus,
+  distincte de `httpx.HTTPStatusError` et `ValidationError`. `VelovClient.fetch()`
+  la lève quand une station configurée est absente du flux de statut.
+- Schémas GBFS : passage en `AwareDatetime` et champs **requis** (suppression
+  des valeurs par défaut permissives). Un payload amputé de `is_renting`,
+  `last_reported`, etc. échoue maintenant à la validation — c'est le
+  comportement voulu au §8 (« Format d'API modifié → `ValidationError` »).
+- `capacity` devient `int | None` de bout en bout (schéma, domaine). « Capacité
+  inconnue » (station absente du référentiel) n'est plus confondu avec
+  « capacité nulle ».
+
+### 16.4 Validation de configuration (§6, §13)
+
+- `DashboardConfig` plafonne le contenu au gabarit V1 : au plus 2 arrêts TCL,
+  2 lignes et 2 directions par arrêt, 2 stations Vélo'v. Dépasser lève une
+  `ValidationError` au chargement.
+- Identifiants (`stop_id`, `station_id`) uniques et non vides ; libellés non
+  vides.
+- `TZ` validé contre `zoneinfo` ; fuseau inconnu → échec au démarrage.
+- `DEVICE_MAC`, quand renseigné, doit être une adresse MAC séparée par des
+  deux-points.
+- `TCL_REFRESH_SECONDS` / `VELOV_REFRESH_SECONDS` doivent être strictement
+  positifs.
+- Nouvelle fonction `validate_runtime_requirements(settings, config, *,
+  device_enabled)` : échoue tôt si des arrêts TCL sont configurés sans
+  identifiants Grand Lyon, ou si l'API appareil est activée sans `DEVICE_MAC` /
+  `DEVICE_API_KEY`. Définie ici, câblée au lifespan en phase 3.
+- `tzdata` ajouté aux dépendances **runtime** : `zoneinfo` n'a pas de base de
+  fuseaux dans `python:3.12-slim` ni sous Windows.
+
+### 16.5 `StopBoard.available` (§8)
+
+`StopBoard` gagne un booléen `available` (défaut `True`) pour distinguer
+« aucun passage à venir » de « les données de cet arrêt n'ont pas pu être
+récupérées ». Sert le marqueur de fraîcheur par bloc du §8. Pas encore produit
+par un mapper : TCL arrive en phase 2.
+
+### 16.6 Critère Docker de la phase 0 — levé
+
+`docker compose up -d --build` puis `curl http://localhost:8000/health` → `200`
+`{"status":"ok"}`, conteneur `healthy` (le `HEALTHCHECK` interne passe). Vérifié
+le 2026-09-02, enfin exécuté sur une machine avec un daemon Docker actif.

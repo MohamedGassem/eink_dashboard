@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from eink_dashboard.core.config import VelovStation
 from eink_dashboard.providers.velov.mapper import to_bike_stations
 from eink_dashboard.providers.velov.schemas import (
@@ -65,13 +68,39 @@ def test_mapper_skips_station_absent_from_status() -> None:
     assert [station.station_id for station in stations] == ["1032", "1024"]
 
 
-def test_mapper_falls_back_to_zero_capacity_when_information_missing() -> None:
+def test_mapper_keeps_unknown_capacity_when_information_missing() -> None:
     information = load_information()
     information.data.stations = [
         station for station in information.data.stations if station.station_id != "1024"
     ]
     stations = to_bike_stations(load_status(), information, CONFIGURED)
-    assert stations[1].capacity == 0
+    assert stations[1].capacity is None
+
+
+def test_status_schema_rejects_missing_required_counts() -> None:
+    with pytest.raises(ValidationError):
+        StationStatus.model_validate(
+            {
+                "station_id": "5000",
+                "last_reported": "2026-09-02T17:36:00Z",
+            }
+        )
+
+
+def test_status_schema_rejects_naive_source_timestamp() -> None:
+    with pytest.raises(ValidationError):
+        StationStatus.model_validate(
+            {
+                "station_id": "5000",
+                "num_vehicles_available": 1,
+                "num_docks_available": 2,
+                "vehicle_types_available": [],
+                "is_installed": True,
+                "is_renting": True,
+                "is_returning": True,
+                "last_reported": "2026-09-02T17:36:00",
+            }
+        )
 
 
 def test_mapper_reports_out_of_service_station() -> None:
