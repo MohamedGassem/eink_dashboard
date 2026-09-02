@@ -1,0 +1,27 @@
+from datetime import tzinfo
+from typing import Annotated
+
+from fastapi import Depends, Request
+
+from eink_dashboard.core.config import Settings
+from eink_dashboard.state import Store
+
+
+def get_store(request: Request) -> Store:
+    store: Store = request.app.state.store
+    return store
+
+
+def get_settings_dep(request: Request) -> Settings:
+    settings: Settings = request.app.state.settings
+    return settings
+
+
+def get_tz(request: Request) -> tzinfo:
+    tz: tzinfo = request.app.state.tz
+    return tz
+
+
+StoreDep = Annotated[Store, Depends(get_store)]
+SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
+TzDep = Annotated[tzinfo, Depends(get_tz)]

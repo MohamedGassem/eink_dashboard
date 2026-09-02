@@ -3427,3 +3427,46 @@ Livré sur `feat/p2-tcl`. 66 tests (2 réseau désélectionnés), `mypy --strict
 - `StopBoard.available=False` est produit par le client TCL ; sa consommation
   (marqueur de fraîcheur par bloc) est phase 3+.
 - Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+
+---
+
+## Delta phase 3 — scheduler et câblage (Task 8), exécuté le 2026-09-02
+
+Livré sur `feat/p3-scheduler`. 75 tests (2 réseau désélectionnés), `mypy
+--strict` et `ruff` propres. `docker compose up` : les deux fournisseurs
+tournent, conteneur `healthy` ; coupure réseau → `provider.failed` sur les deux,
+process vivant, `/health/live` toujours 200 ; reconnexion → `provider.refreshed`
+au tick suivant sans redémarrage. Écarts par rapport au texte de la Task 8,
+aligné sur les deltas P0 et phase 2 :
+
+### Task 8 — scheduler
+
+- `run_provider_loop` **ne fait plus de bascule stale**. Le refactor P0 a
+  supprimé `mark_stale_if_old` ; la fraîcheur est calculée à la lecture par
+  `ProviderResult.status_at(now, stale_after_seconds)`, déjà couvert par
+  `test_state.py`. La boucle ne fait qu'enregistrer succès ou échec.
+- `Provider.fetch()` renvoie `ProviderSnapshot[T]` (delta P0). La boucle dépaquette
+  `snapshot.data` et `snapshot.source_updated_at` et les passe à
+  `store.record_success(..., source_updated_at=...)`.
+- Réessai immédiat, sans `asyncio.sleep` (spec §8 « un réessai immédiat »).
+  `_fetch_with_one_retry` rejoue `fetch()` une fois sur toute exception, puis
+  laisse la boucle enregistrer l'échec.
+- `RETRY_DELAY_SECONDS` / `STALE_FACTOR` du texte de la task abandonnés.
+
+### Task 8 — câblage lifespan
+
+- `validate_runtime_requirements(settings, config, device_enabled=False)` câblée
+  au démarrage (dette P0 soldée). `device_enabled=False` tant que l'API appareil
+  (Task 12) n'existe pas ; constante `DEVICE_API_ENABLED` dans `main.py`.
+- Les fournisseurs ne sont instanciés que si leur configuration est non vide
+  (`config.velov_stations`, `config.tcl_stops`) : pas de boucle TCL à vide.
+- `app.state` porte `settings`, `store`, `tz`. `api/deps.py` expose `StoreDep`,
+  `SettingsDep`, et `TzDep` (ajout : le fuseau est utile aux routes de rendu).
+- Nouveau `tests/unit/test_main.py` : câblage de l'état, échec-tôt sans
+  identifiants, et un test qui laisse les boucles peupler le `Store` via respx.
+
+### Reste ouvert après phase 3
+
+- `/health` et `/api/v1/dashboard` réels consomment `status_at` — c'est la
+  Task 9.
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
