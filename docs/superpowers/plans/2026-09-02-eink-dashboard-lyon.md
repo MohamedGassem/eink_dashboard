@@ -3385,5 +3385,45 @@ en section 16 et fait foi.
 
 - `validate_runtime_requirements` et `status_at` sont définis mais pas encore
   câblés — c'est le travail de la phase 3 (Task 8).
-- `StopBoard.available` n'est pas encore positionné à `False` par un mapper —
-  Task 6.
+
+---
+
+## Delta phase 2 — TCL (Tasks 6 et 7), exécuté le 2026-09-02
+
+Livré sur `feat/p2-tcl`. 66 tests (2 réseau désélectionnés), `mypy --strict` et
+`ruff` propres, test live `-m network` vert contre la vraie API Grand Lyon.
+Écarts par rapport au texte des Tasks 6-7, aligné sur le delta P0 :
+
+### Task 6 — schémas et mapper TCL
+
+- **Capture réelle faite** : `docs/tcl-api-notes.md` documente l'enveloppe
+  datapusher (`{fields, nb_results, next, values}`) et les 10 champs d'un
+  enregistrement. `TCL_FIELDS = {stop_id:"id", line:"ligne", direction:"direction",
+  expected_at:"heurepassage", kind:"type"}`.
+- `heurepassage` est un **datetime naïf** en heure locale Lyon (pas d'ISO avec
+  fuseau). `PassageRecord._assume_paris` lui attache `Europe/Paris`.
+- `id` est un **entier** dans le JSON → `coerce_numbers_to_str=True`.
+- `TCL_FIELDS` gardée par deux tests : présence des champs dans la capture, et
+  cohérence avec les alias du schéma (les alias sont des littéraux, exigence du
+  plugin mypy de pydantic).
+- Capture de 23:00 : uniquement `type="T"`. `REALTIME_KIND="E"` retenu d'après la
+  doc SYTRAL, confirmable par une capture de jour via le test live.
+- `to_stop_boards` renvoie toujours `StopBoard(..., available=True)`.
+
+### Task 7 — client HTTP TCL
+
+- `TclClient.fetch()` renvoie `ProviderSnapshot[tuple[StopBoard, ...]]`
+  (`source_updated_at=None` : pas d'horodatage source propre, la fraîcheur
+  retombe sur `last_success_at` ; la phase 3 pourra le raffiner comme Vélo'v).
+- Un arrêt en échec → `StopBoard(stop_name=..., departures=(), available=False)`.
+  Tous les arrêts en échec → `ProviderError` (pas `RuntimeError`).
+- `config/dashboard.toml` : arrêts réels vérifiés (`Bellecour A` = point d'arrêt
+  `30103`, `Bellecour D` = `30201`). Le choix final des arrêts reste à
+  l'utilisateur ; `directions` laissé vide pour ne pas rendre le test live
+  sensible à l'heure.
+
+### Reste ouvert après phase 2
+
+- `StopBoard.available=False` est produit par le client TCL ; sa consommation
+  (marqueur de fraîcheur par bloc) est phase 3+.
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.

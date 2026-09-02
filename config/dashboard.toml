@@ -1,13 +1,16 @@
-[[tcl.stops]]
-name = "Bellecour"
-stop_id = "1234"
-lines = ["A", "D"]
-directions = ["Vaulx-en-Velin La Soie"]
+# Points d'arrêt vérifiés le 2026-09-02 via tcl_sytral.tclarret.
+# Le choix définitif des arrêts suivis revient à l'utilisateur.
 
 [[tcl.stops]]
-name = "Part-Dieu"
-stop_id = "5678"
-lines = ["B"]
+name = "Bellecour A"
+stop_id = "30103"
+lines = ["A"]
+directions = []
+
+[[tcl.stops]]
+name = "Bellecour D"
+stop_id = "30201"
+lines = ["D"]
 directions = []
 
 [[velov.stations]]
