@@ -1,8 +1,14 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from eink_dashboard.core.config import VelovStation
 from eink_dashboard.providers.velov.mapper import to_bike_stations
-from eink_dashboard.providers.velov.schemas import StationInformationFeed, StationStatusFeed
+from eink_dashboard.providers.velov.schemas import (
+    StationInformationFeed,
+    StationStatus,
+    StationStatusData,
+    StationStatusFeed,
+)
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -71,4 +77,27 @@ def test_mapper_falls_back_to_zero_capacity_when_information_missing() -> None:
 def test_mapper_reports_out_of_service_station() -> None:
     configured = [VelovStation(station_id="1", label="Hors service")]
     stations = to_bike_stations(load_status(), load_information(), configured)
+    assert stations[0].is_renting is False
+
+
+def test_mapper_requires_both_installed_and_renting() -> None:
+    status = StationStatusFeed(
+        last_updated=datetime(2026, 9, 2, 17, 37, tzinfo=UTC),
+        data=StationStatusData(
+            stations=[
+                StationStatus(
+                    station_id="5000",
+                    num_vehicles_available=0,
+                    num_docks_available=0,
+                    vehicle_types_available=[],
+                    is_installed=False,
+                    is_renting=True,
+                    is_returning=True,
+                    last_reported=datetime(2026, 9, 2, 17, 36, tzinfo=UTC),
+                )
+            ]
+        ),
+    )
+    configured = [VelovStation(station_id="5000", label="Pas encore installee")]
+    stations = to_bike_stations(status, load_information(), configured)
     assert stations[0].is_renting is False
