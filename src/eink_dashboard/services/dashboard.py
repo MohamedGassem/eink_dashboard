@@ -64,3 +64,24 @@ def dashboard_payload(
             ],
         },
     }
+
+
+# Cadence de réveil du panneau : court en pointe TCL, moyen en journée, long la nuit.
+PEAK_REFRESH = 120
+DAY_REFRESH = 300
+NIGHT_REFRESH = 3600
+
+_MORNING_PEAK = (7 * 60, 9 * 60 + 30)
+_EVENING_PEAK = (17 * 60, 19 * 60 + 30)
+_NIGHT_START = 23 * 60
+_NIGHT_END = 6 * 60
+
+
+def refresh_rate_for(now: datetime) -> int:
+    minutes = now.hour * 60 + now.minute
+    if minutes >= _NIGHT_START or minutes < _NIGHT_END:
+        return NIGHT_REFRESH
+    for start, end in (_MORNING_PEAK, _EVENING_PEAK):
+        if start <= minutes < end:
+            return PEAK_REFRESH
+    return DAY_REFRESH

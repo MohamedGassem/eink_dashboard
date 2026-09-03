@@ -8,12 +8,11 @@ from eink_dashboard.api.deps import ImagesDep, SettingsDep, StoreDep, TzDep
 from eink_dashboard.render.images import ImageCache, to_bmp_bytes
 from eink_dashboard.render.layout import render
 from eink_dashboard.render.viewmodel import build_view
-from eink_dashboard.services.dashboard import STALE_INTERVAL_FACTOR
+from eink_dashboard.services.dashboard import STALE_INTERVAL_FACTOR, refresh_rate_for
 
 router = APIRouter()
 log = structlog.get_logger()
 
-DEFAULT_REFRESH_SECONDS = 300
 FRIENDLY_ID = "LYON01"
 
 
@@ -85,7 +84,7 @@ async def display(
         "status": 0,
         "image_url": _image_url(settings, filename),
         "filename": filename,
-        "refresh_rate": DEFAULT_REFRESH_SECONDS,
+        "refresh_rate": refresh_rate_for(datetime.now(tz)),
         "update_firmware": False,
         "firmware_url": None,
         "reset_firmware": False,
