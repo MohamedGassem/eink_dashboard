@@ -3514,3 +3514,34 @@ deltas P0 / phase 2 / phase 3 :
 
 - Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
 - ViewModel textuel et rendu Pillow — Tasks 10-11.
+
+---
+
+## Delta phase 5 — ViewModel textuel pur (Task 10), exécuté le 2026-09-03
+
+Livré sur `feat/p5-viewmodel`. 91 tests (2 réseau désélectionnés), `mypy
+--strict` et `ruff` propres. Écarts par rapport au texte de la Task 10, aligné
+sur les deltas précédents :
+
+### Task 10 — `render/viewmodel.py`
+
+- `build_view(state, now, *, tcl_stale_after_seconds, velov_stale_after_seconds)` :
+  le statut de fraîcheur n'est plus un champ stocké (`ProviderResult.status` a
+  disparu au refactor P0). La vue appelle `ProviderResult.status_at(now, seuil)`
+  comme `services/dashboard.py`, et la route (Task 11) passera
+  `refresh_seconds * STALE_INTERVAL_FACTOR` par fournisseur.
+- `STALE_STATUSES = {"degraded", "stale", "unavailable"}` : tout sauf `ok` lève
+  le drapeau `stale` du bloc et remplit `note`.
+- `note` vient de `ProviderResult.last_success_at` (`maj HH:MM`), ou
+  `"aucune donnée"` s'il est `None`. L'ancien `updated_at` du texte n'existe plus.
+- `BikeBlock.capacity: int | None` (le domaine porte `capacity: int | None`
+  depuis la phase 2), pas `int`.
+- `Departure` garde `is_realtime` en 4ᵉ position ; groupage par
+  `(line, direction)`, hachage sur tout sauf `as_of`, inchangés.
+- `tests/unit/test_viewmodel.py` : helper `view_of(state, now=T0)` qui injecte un
+  seuil de 180 s ; le reste des cas est repris tel quel du plan.
+
+### Reste ouvert après phase 5
+
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+- Rendu Pillow, `/preview.png`, service des BMP — Task 11.
