@@ -7,3 +7,10 @@ __pycache__/
 .ruff_cache/
 .superpowers/
 .claude/
+
+# secrets ESPHome / Home Assistant (garder les *.example.yaml)
+firmware/secrets.yaml
+homeassistant/secrets.yaml
+# artefacts de build ESPHome
+firmware/.esphome/
+firmware/*.bin

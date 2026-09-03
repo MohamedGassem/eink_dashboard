@@ -1,0 +1,128 @@
+# Dashboard e-ink Lyon — firmware ESPHome (v2, orchestré par Home Assistant)
+#
+# Rôle du firmware : se connecter au Wi-Fi + à la Native API, télécharger un BMP
+# 1 bit 800x480 depuis FastAPI quand Home Assistant le demande, le dessiner sur
+# l'e-paper, publier le hash affiché. Rien d'autre : aucune logique métier,
+# aucune comparaison de hash, aucune persistance, aucun deep sleep (mode secteur).
+#
+# Pinout : cookbook Seeed « XIAO 7.5" ePaper Panel / ESPHome »
+#   https://wiki.seeedstudio.com/xiao_075inch_epaper_panel_esphome/
+# À revérifier avec `esphome config firmware/xiao-epaper.yaml` avant de flasher.
+
+substitutions:
+  device_name: eink-dashboard
+  friendly_name: "E-ink Dashboard"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+
+logger:
+
+# Native API chiffrée : Home Assistant appelle le service `refresh`.
+api:
+  encryption:
+    key: !secret api_encryption_key
+  services:
+    - service: refresh
+      variables:
+        content_hash: string
+      then:
+        - logger.log:
+            format: "HA refresh demandé pour hash %s"
+            args: ["content_hash.c_str()"]
+        - lambda: "id(pending_hash) = content_hash;"
+        - component.update: dashboard_image
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Au (re)démarrage, on retélécharge et redessine une fois l'image courante :
+  # Home Assistant resynchronise ensuite son input_text via `shown_hash`.
+  on_connect:
+    - component.update: dashboard_image
+
+# Heure fournie par Home Assistant (diagnostic uniquement).
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# RAM seulement : le hash « en cours de téléchargement », publié en `shown_hash`
+# après un download réussi. Aucune persistance (pas de restore_value).
+globals:
+  - id: pending_hash
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+http_request:
+  timeout: 15s
+
+spi:
+  clk_pin: GPIO8
+  mosi_pin: GPIO10
+
+# BMP 1 bit servi par FastAPI. Si le décodage BMP pose problème sur l'ESP32-C3,
+# exposer /image/dashboard.png côté backend et passer `format: PNG` (voir README).
+online_image:
+  - id: dashboard_image
+    url: !secret dashboard_image_url
+    format: BMP
+    type: BINARY
+    update_interval: never
+    on_download_finished:
+      - component.update: main_display
+      - text_sensor.template.publish:
+          id: shown_hash
+          state: !lambda "return id(pending_hash);"
+      - logger.log: "image dashboard affichée"
+    on_error:
+      - text_sensor.template.publish:
+          id: shown_hash
+          state: "error"
+      - logger.log:
+          format: "échec téléchargement image dashboard"
+          level: WARN
+
+display:
+  - platform: waveshare_epaper
+    id: main_display
+    cs_pin: GPIO3
+    dc_pin: GPIO5
+    busy_pin:
+      number: GPIO4
+      inverted: true
+    reset_pin: GPIO2
+    model: 7.50inv2
+    update_interval: never
+    lambda: |-
+      it.image(0, 0, id(dashboard_image));
+
+# --- Diagnostics exposés à Home Assistant ---------------------------------
+sensor:
+  - platform: wifi_signal
+    name: "WiFi signal"
+    update_interval: 60s
+  - platform: uptime
+    name: "Uptime"
+
+text_sensor:
+  - platform: template
+    id: shown_hash
+    name: "Content hash"
+  - platform: version
+    name: "ESPHome version"
+  - platform: wifi_info
+    ip_address:
+      name: "IP address"
+
+binary_sensor:
+  - platform: status
+    name: "Status"
