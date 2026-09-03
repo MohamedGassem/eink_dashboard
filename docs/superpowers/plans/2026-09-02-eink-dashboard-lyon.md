@@ -2882,7 +2882,7 @@ git commit -m "feat: rendu Pillow 1 bit, cache image et apercu PNG"
   - `POST /api/log` renvoyant 204.
   - `GET /image/{name}.bmp` renvoyant `image/bmp`.
 
-- [ ] **Step 1: Écrire les tests qui échouent**
+- [x] **Step 1: Écrire les tests qui échouent**
 
 `tests/unit/test_device_api.py` :
 
@@ -2993,12 +2993,12 @@ def test_log_endpoint_accepts_any_payload() -> None:
     assert response.status_code == 204
 ```
 
-- [ ] **Step 2: Lancer les tests et vérifier qu'ils échouent**
+- [x] **Step 2: Lancer les tests et vérifier qu'ils échouent**
 
 Run: `pytest tests/unit/test_device_api.py -v`
 Expected: FAIL avec `ImportError: cannot import name 'device'`
 
-- [ ] **Step 3: Écrire les routes appareil**
+- [x] **Step 3: Écrire les routes appareil**
 
 `src/eink_dashboard/api/routes/device.py` :
 
@@ -3106,7 +3106,7 @@ async def image(request: Request, name: str) -> Response:
 
 L'argument `now` calculé dans `display` sert au journal et sera utilisé à la Task 13. S'il déclenche un avertissement de variable inutilisée à `ruff`, le supprimer ici et le rétablir à la Task 13.
 
-- [ ] **Step 4: Câbler le cache d'images et les routes**
+- [x] **Step 4: Câbler le cache d'images et les routes**
 
 Dans `src/eink_dashboard/main.py`, ajouter l'import :
 
@@ -3127,7 +3127,7 @@ Et après `app.include_router(dashboard_routes.router)` :
 app.include_router(device_routes.router)
 ```
 
-- [ ] **Step 5: Lancer les tests et vérifier qu'ils passent**
+- [x] **Step 5: Lancer les tests et vérifier qu'ils passent**
 
 Run: `pytest -v && mypy && ruff check .`
 Expected: PASS
@@ -3143,7 +3143,7 @@ Flasher ou configurer le firmware TRMNL sur le XIAO et le pointer vers ce serveu
 
 Expected: le panneau affiche le dashboard. C'est le critère de validation de la phase appareil.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -3593,3 +3593,44 @@ deltas précédents :
 - Endpoints du protocole appareil (`/api/setup`, `/api/display`, `/api/log`,
   `/image/{name}.bmp`) et câblage de `ImageCache` — Task 12.
 - Validation Docker + rendu à taille réelle sur la dalle — Task 12.
+
+---
+
+## Delta phase 7 — Endpoints du protocole appareil (Task 12), exécuté le 2026-09-03
+
+Livré sur `feat/p7-device`. 110 tests (2 réseau désélectionnés), `mypy --strict`
+et `ruff` propres. Écarts par rapport au texte de la Task 12, aligné sur les
+deltas précédents :
+
+### Task 12 — `api/routes/device.py`
+
+- Les handlers passent par les dépendances FastAPI (`StoreDep`, `SettingsDep`,
+  `TzDep`, nouvelle `ImagesDep`) au lieu de `Request` direct, comme le reste de
+  `api/routes/`. `ImagesDep` / `get_images` ajoutés à `api/deps.py`.
+- `_current_image` appelle `build_view(...)` avec les seuils
+  `refresh_seconds * STALE_INTERVAL_FACTOR` par fournisseur (le `build_view` sans
+  seuil du texte du plan n'existe plus depuis la phase 5).
+- Pas de variable `now` inutilisée dans `display` : l'horodatage est calculé dans
+  `_current_image`. La Task 13 le rétablira dans `display` pour la cadence.
+- `friendly_id` = `"LYON01"` (constante `FRIENDLY_ID`), `refresh_rate` =
+  `DEFAULT_REFRESH_SECONDS` = 300 en dur ; la cadence adaptative est Task 13.
+- `_check_mac` / `_check_token` : un secret attendu vide fait échouer la requête
+  (404 / 401), donc les endpoints restent inertes tant que `.env` n'est pas
+  renseigné.
+
+### Task 12 — `main.py` et démarrage
+
+- `DEVICE_API_ENABLED` passe à `True` : `validate_runtime_requirements` exige
+  désormais `DEVICE_MAC` et `DEVICE_API_KEY` au démarrage (dette de la phase 3
+  soldée). `app.state.images = ImageCache()` posé dans le lifespan, routeur
+  `device` inclus.
+- `tests/unit/test_main.py` : fixture `env` complétée avec `DEVICE_MAC` /
+  `DEVICE_API_KEY`, nouveau test `test_lifespan_fails_fast_when_device_api_key_is_missing`.
+
+### Reste ouvert après phase 7
+
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+- Validation Docker + contrat firmware TRMNL (URL serveur personnalisée, valeur
+  du champ `status`) + rendu à taille réelle sur la dalle — non faite, nécessite
+  le matériel (Task 12 Step 6).
+- Cadence adaptative (`refresh_rate` dynamique, heures creuses) — Task 13.

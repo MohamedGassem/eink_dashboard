@@ -28,6 +28,8 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     monkeypatch.setenv("GRANDLYON_USERNAME", "")
     monkeypatch.setenv("GRANDLYON_PASSWORD", "")
     monkeypatch.setenv("TZ", "Europe/Paris")
+    monkeypatch.setenv("DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
+    monkeypatch.setenv("DEVICE_API_KEY", "cle-de-test")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -57,6 +59,27 @@ async def test_lifespan_fails_fast_when_tcl_configured_without_credentials(
     get_settings.cache_clear()
 
     with pytest.raises(ValueError, match="GRANDLYON_USERNAME"):
+        async with lifespan(app):
+            pass
+
+    get_settings.cache_clear()
+
+
+async def test_lifespan_fails_fast_when_device_api_key_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = tmp_path / "dashboard.toml"
+    config.write_text(
+        '[[velov.stations]]\nstation_id = "1032"\nlabel = "Pizay"\n', encoding="utf-8"
+    )
+    monkeypatch.setenv("CONFIG_PATH", str(config))
+    monkeypatch.setenv("GRANDLYON_USERNAME", "")
+    monkeypatch.setenv("GRANDLYON_PASSWORD", "")
+    monkeypatch.setenv("DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
+    monkeypatch.setenv("DEVICE_API_KEY", "")
+    get_settings.cache_clear()
+
+    with pytest.raises(ValueError, match="DEVICE_API_KEY"):
         async with lifespan(app):
             pass
 
