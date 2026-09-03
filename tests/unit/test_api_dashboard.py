@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 from eink_dashboard.api.routes import dashboard, health
 from eink_dashboard.core.config import Settings
 from eink_dashboard.domain.bikes import BikeStation
+from eink_dashboard.domain.disruptions import TransitDisruption
 from eink_dashboard.domain.transit import Departure, StopBoard
+from eink_dashboard.domain.weather import WeatherSnapshot
 from eink_dashboard.state import Store
 
 T0 = datetime(2026, 9, 2, 8, 0, tzinfo=UTC)
@@ -36,6 +38,27 @@ def filled_store(now: datetime = T0) -> Store:
         now,
     )
     store.record_success("velov", (BikeStation("1032", "Pizay", 12, 8, 4, 7, 20, True, now),), now)
+    store.record_success(
+        "tcl_disruptions",
+        (
+            TransitDisruption(
+                source_id="S1",
+                lines=("T2",),
+                summary="Trafic perturbé",
+                description="Trafic perturbé entre Jean Macé et Perrache.",
+                valid_from=now - timedelta(hours=1),
+                valid_until=now + timedelta(hours=2),
+                severity=None,
+                planned=None,
+            ),
+        ),
+        now,
+    )
+    store.record_success(
+        "weather",
+        WeatherSnapshot(temperature_c=18.3, rain_at=now + timedelta(hours=2), reported_at=now),
+        now,
+    )
     return store
 
 
@@ -103,6 +126,28 @@ def test_dashboard_returns_empty_lists_without_data() -> None:
     assert body["tcl"]["status"] == "unavailable"
     assert body["tcl"]["stops"] == []
     assert body["velov"]["stations"] == []
+    assert body["tcl_disruptions"]["status"] == "unavailable"
+    assert body["tcl_disruptions"]["disruptions"] == []
+    assert body["weather"]["status"] == "unavailable"
+    assert body["weather"]["snapshot"] is None
+
+
+def test_dashboard_exposes_disruptions_and_weather() -> None:
+    now = datetime.now(ZoneInfo("Europe/Paris"))
+    body = build_client(filled_store(now)).get("/api/v1/dashboard").json()
+
+    assert body["tcl_disruptions"]["status"] == "ok"
+    assert body["tcl_disruptions"]["disruptions"][0]["lines"] == ["T2"]
+    assert body["weather"]["status"] == "ok"
+    assert body["weather"]["snapshot"]["temperature_c"] == 18.3
+
+
+def test_health_reports_v2_providers() -> None:
+    now = datetime.now(ZoneInfo("Europe/Paris"))
+    body = build_client(filled_store(now)).get("/health").json()
+
+    assert body["providers"]["tcl_disruptions"]["status"] == "ok"
+    assert body["providers"]["weather"]["status"] == "ok"
 
 
 def test_preview_png_renders_an_image() -> None:

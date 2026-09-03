@@ -32,9 +32,13 @@ def dashboard_payload(
     *,
     tcl_stale_after_seconds: float,
     velov_stale_after_seconds: float,
+    tcl_disruptions_stale_after_seconds: float,
+    weather_stale_after_seconds: float,
 ) -> dict[str, Any]:
     boards = state.tcl.data or ()
     stations = state.velov.data or ()
+    disruptions = state.tcl_disruptions.data or ()
+    weather = state.weather.data
     return {
         "tcl": {
             **provider_health(state.tcl, now, tcl_stale_after_seconds),
@@ -62,6 +66,34 @@ def dashboard_payload(
                 {**asdict(station), "reported_at": station.reported_at.isoformat()}
                 for station in stations
             ],
+        },
+        "tcl_disruptions": {
+            **provider_health(state.tcl_disruptions, now, tcl_disruptions_stale_after_seconds),
+            "disruptions": [
+                {
+                    "source_id": disruption.source_id,
+                    "lines": list(disruption.lines),
+                    "summary": disruption.summary,
+                    "description": disruption.description,
+                    "valid_from": _iso(disruption.valid_from),
+                    "valid_until": _iso(disruption.valid_until),
+                    "severity": disruption.severity,
+                    "planned": disruption.planned,
+                }
+                for disruption in disruptions
+            ],
+        },
+        "weather": {
+            **provider_health(state.weather, now, weather_stale_after_seconds),
+            "snapshot": (
+                None
+                if weather is None
+                else {
+                    "temperature_c": weather.temperature_c,
+                    "rain_at": _iso(weather.rain_at),
+                    "reported_at": weather.reported_at.isoformat(),
+                }
+            ),
         },
     }
 
