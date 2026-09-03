@@ -1,14 +1,15 @@
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Body, Header, HTTPException, Response
 
-from eink_dashboard.api.deps import ImagesDep, SettingsDep, StoreDep, TzDep
+from eink_dashboard.api.deps import ConfigDep, ImagesDep, SettingsDep, StoreDep, TzDep
+from eink_dashboard.core.config import DashboardConfig, Settings
 from eink_dashboard.render.images import ImageCache, to_bmp_bytes
 from eink_dashboard.render.layout import render
-from eink_dashboard.render.viewmodel import build_view
-from eink_dashboard.services.dashboard import STALE_INTERVAL_FACTOR, refresh_rate_for
+from eink_dashboard.services.dashboard import refresh_rate_for, view_for
+from eink_dashboard.state import Store
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -26,14 +27,14 @@ def _check_token(sent: str, expected: str) -> None:
         raise HTTPException(status_code=401, detail="jeton invalide")
 
 
-def _current_image(store: StoreDep, settings: SettingsDep, tz: TzDep, images: ImageCache) -> str:
-    now = datetime.now(tz)
-    view = build_view(
-        store.state,
-        now,
-        tcl_stale_after_seconds=settings.tcl_refresh_seconds * STALE_INTERVAL_FACTOR,
-        velov_stale_after_seconds=settings.velov_refresh_seconds * STALE_INTERVAL_FACTOR,
-    )
+def _current_image(
+    store: Store,
+    config: DashboardConfig,
+    settings: Settings,
+    tz: tzinfo,
+    images: ImageCache,
+) -> str:
+    view = view_for(store, config, settings, datetime.now(tz))
     filename = f"dash-{view.content_hash()}.bmp"
     if images.get(filename) is None:
         images.put(filename, to_bmp_bytes(render(view)))
@@ -47,13 +48,14 @@ def _image_url(settings: SettingsDep, filename: str) -> str:
 @router.get("/api/setup")
 async def setup(
     store: StoreDep,
+    config: ConfigDep,
     settings: SettingsDep,
     tz: TzDep,
     images: ImagesDep,
     id: Annotated[str, Header()],
 ) -> dict[str, Any]:
     _check_mac(id, settings.device_mac)
-    filename = _current_image(store, settings, tz, images)
+    filename = _current_image(store, config, settings, tz, images)
     log.info("device.setup", mac=id)
     return {
         "status": 200,
@@ -67,6 +69,7 @@ async def setup(
 @router.get("/api/display")
 async def display(
     store: StoreDep,
+    config: ConfigDep,
     settings: SettingsDep,
     tz: TzDep,
     images: ImagesDep,
@@ -78,7 +81,7 @@ async def display(
 ) -> dict[str, Any]:
     _check_mac(id, settings.device_mac)
     _check_token(access_token, settings.device_api_key)
-    filename = _current_image(store, settings, tz, images)
+    filename = _current_image(store, config, settings, tz, images)
     log.info("device.display", mac=id, battery=battery_voltage, rssi=rssi, fw=fw_version)
     return {
         "status": 0,
