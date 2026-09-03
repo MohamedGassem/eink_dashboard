@@ -1,22 +1,37 @@
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from eink_dashboard.api.routes import device
-from eink_dashboard.core.config import DashboardConfig, Settings
+from eink_dashboard.core.config import (
+    DashboardConfig,
+    DisruptionLine,
+    DisruptionsConfig,
+    Settings,
+)
+from eink_dashboard.domain.bikes import BikeStation
+from eink_dashboard.domain.disruptions import TransitDisruption
+from eink_dashboard.domain.transit import Departure, StopBoard
 from eink_dashboard.render.images import ImageCache
 from eink_dashboard.state import Store
 
 MAC = "AA:BB:CC:DD:EE:FF"
 KEY = "cle-de-test"
 
+DISRUPTIONS_CONFIG = DashboardConfig(
+    disruptions=DisruptionsConfig(
+        lines=["T2"], line_refs=[DisruptionLine(label="T2", refs=["ActIV:Line::T2:SYTRAL"])]
+    )
+)
 
-def build_client() -> TestClient:
+
+def build_client(store: Store | None = None, config: DashboardConfig | None = None) -> TestClient:
     app = FastAPI()
     app.include_router(device.router)
-    app.state.store = Store()
-    app.state.config = DashboardConfig()
+    app.state.store = store or Store()
+    app.state.config = config or DashboardConfig()
     app.state.images = ImageCache()
     app.state.tz = ZoneInfo("Europe/Paris")
     app.state.settings = Settings(
@@ -26,6 +41,11 @@ def build_client() -> TestClient:
         public_base_url="http://server:8000",
     )
     return TestClient(app)
+
+
+def _filename(client: TestClient) -> str:
+    body = client.get("/api/display", headers={"ID": MAC, "Access-Token": KEY}).json()
+    return str(body["filename"])
 
 
 def test_setup_returns_the_api_key_for_the_known_mac() -> None:
@@ -104,6 +124,84 @@ def test_unknown_image_returns_404() -> None:
     response = build_client().get("/image/inconnue.bmp")
 
     assert response.status_code == 404
+
+
+NOW = datetime.now(ZoneInfo("Europe/Paris"))
+
+
+def _bikes(count: int, docks: int) -> tuple[BikeStation, ...]:
+    return (BikeStation("7052", "Blandan", count, count, 0, docks, 20, True, NOW),)
+
+
+def test_velov_docks_change_alone_keeps_the_same_image() -> None:
+    store = Store()
+    store.record_success("velov", _bikes(5, 10), NOW)
+    client = build_client(store)
+    first = _filename(client)
+
+    store.record_success("velov", _bikes(5, 3), NOW)
+    assert _filename(client) == first
+
+
+def test_velov_bike_count_change_produces_a_new_image() -> None:
+    store = Store()
+    store.record_success("velov", _bikes(5, 10), NOW)
+    client = build_client(store)
+    first = _filename(client)
+
+    store.record_success("velov", _bikes(2, 13), NOW)
+    assert _filename(client) != first
+
+
+def test_adding_and_removing_a_disruption_changes_the_image() -> None:
+    store = Store()
+    store.record_success("tcl_disruptions", (), NOW)
+    client = build_client(store, DISRUPTIONS_CONFIG)
+    clear = _filename(client)
+
+    disruption = TransitDisruption(
+        source_id="S1",
+        lines=("T2",),
+        summary="Trafic perturbé",
+        description="Trafic perturbé",
+        valid_from=NOW - timedelta(hours=1),
+        valid_until=NOW + timedelta(hours=2),
+        severity=None,
+        planned=None,
+    )
+    store.record_success("tcl_disruptions", (disruption,), NOW)
+    disturbed = _filename(client)
+    assert disturbed != clear
+
+    store.record_success("tcl_disruptions", (), NOW)
+    assert _filename(client) == clear
+
+
+def test_a_departure_crossing_a_minute_boundary_changes_the_image() -> None:
+    store = Store()
+    board = StopBoard(
+        stop_name="Route de Vienne",
+        departures=(Departure("T2", "St-Priest", NOW + timedelta(seconds=125), True),),
+    )
+    store.record_success("tcl", (board,), NOW)
+    client = build_client(store)
+    first = _filename(client)
+
+    later = StopBoard(
+        stop_name="Route de Vienne",
+        departures=(Departure("T2", "St-Priest", NOW + timedelta(seconds=55), True),),
+    )
+    store.record_success("tcl", (later,), NOW)
+    assert _filename(client) != first
+
+
+def test_polling_without_state_change_serves_one_cached_image() -> None:
+    store = Store()
+    store.record_success("velov", _bikes(5, 10), NOW)
+    client = build_client(store)
+
+    names = {_filename(client) for _ in range(5)}
+    assert len(names) == 1
 
 
 def test_log_endpoint_accepts_any_payload() -> None:

@@ -683,11 +683,21 @@ Option d'amélioration ultérieure, hors V2 : cadence adaptative plus agressive 
 
 ## Task 10 — Validation end-to-end
 
-- [ ] `pytest -v`
-- [ ] `mypy --strict src/`
-- [ ] `ruff check .`
-- [ ] `ruff format --check .`
-- [ ] `docker compose up -d --build`
+- [x] `pytest -v` (213 tests, 4 `network` désélectionnés)
+- [x] `mypy --strict src/`
+- [x] `ruff check .`
+- [x] `ruff format --check .`
+- [ ] `docker compose up -d --build` — non exécuté ici (pas de Docker dans
+      l'environnement) ; à valider par l'utilisateur
+- [x] `/health`, `/api/v1/dashboard`, `/preview.png`, `/api/display` + BMP servi :
+      couverts par `tests/unit/test_e2e_v2.py` à travers `lifespan`
+- [ ] Affichage sur le XIAO + cycle veille→réveil : matériel, à valider par
+      l'utilisateur
+- [x] Timeout SIRI-SX → `Info trafic indisponible` (viewmodel + e2e)
+- [x] Perturbation T2 / métro D, 0 vélo, pluie < 2 h : couverts par les tests
+      viewmodel et layout
+- [x] Suppression d'infos invisibles → moins de changements de hash
+      (`test_device_api.py`)
 - [ ] Vérifier `/health`.
 - [ ] Vérifier `/api/v1/dashboard`.
 - [ ] Vérifier `/preview.png` en 800×480 natif.
@@ -869,6 +879,25 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   info trafic indisponible, météo indisponible, 0 vélo, libellés longs, 4
   passages, aucune donnée TCL, alerte longue) — chacun rend une frame complète,
   déterministe, et toutes distinctes.
+
+## Delta phase 16 — cadence e-ink et validation e2e (Tasks 9, 10)
+
+- `tests/unit/test_device_api.py` : `/api/display` sert une image cachée stable
+  tant que l'état ne change pas ; un changement de places Vélo'v seul ne change
+  pas le `filename`, un changement de nombre de vélos ou l'ajout/retrait d'une
+  perturbation si ; un passage qui franchit une minute change l'image.
+  `refresh_rate` inchangé (Task 9 n'ajoute pas de cadence adaptative).
+- `tests/unit/test_e2e_v2.py` : les 4 providers câblés via `lifespan`, `/health`
+  + `/api/v1/dashboard` + `/preview.png` + `/api/display` + `/image/...`
+  servis ; un timeout SIRI-SX laisse `tcl_disruptions` en erreur et n'est jamais
+  présenté comme « trafic normal ».
+- Non exécuté ici : `docker compose up`, affichage réel sur le XIAO
+  (voir Task 10).
+
+## État final
+
+Suite : **213 passés**, `mypy --strict` et `ruff` propres. Les 12 points de la
+*Definition of Done* sont couverts par les tests sauf les 2 items matériel/Docker.
 
 # 11. Sources techniques
 
