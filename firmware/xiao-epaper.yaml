@@ -11,7 +11,11 @@
 
 substitutions:
   device_name: eink-dashboard
-  friendly_name: "E-ink Dashboard"
+  # "Eink Dashboard" (sans tiret) -> slug HA "eink_dashboard", cohérent avec le
+  # nom de nœud et donc avec le service esphome.eink_dashboard_refresh et le
+  # package homeassistant/eink_dashboard.yaml. "E-ink Dashboard" donnait
+  # "e_ink_dashboard" pour les entités (tiret -> underscore) et cassait le package.
+  friendly_name: "Eink Dashboard"
 
 esphome:
   name: ${device_name}
@@ -44,6 +48,15 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  # Device fixe sur secteur : connexion stable prioritaire.
+  # - power_save_mode none : garde l'API HA réactive (pas de micro-coupures).
+  # - post_connect_roaming false : la Freebox expose 2 AP même canal ; le roaming
+  #   post-connexion d'ESPHome décrochait une connexion pourtant bonne (-47 dBm),
+  #   échouait, et redémarrait l'adaptateur (API coupée ~50 s). Cf. logs 2026-09-03.
+  # - fast_connect : reconnexion directe au dernier AP sans scan complet.
+  power_save_mode: none
+  fast_connect: true
+  post_connect_roaming: false
   # Au (re)démarrage, on retélécharge et redessine une fois l'image courante :
   # Home Assistant resynchronise ensuite son input_text via `shown_hash`.
   on_connect:
@@ -103,7 +116,9 @@ display:
     model: 7.50inv2
     update_interval: never
     lambda: |-
-      it.image(0, 0, id(dashboard_image));
+      // BMP 1 bit : bit à 1 = pixel blanc. On échange on/off pour que le fond
+      // blanc reste blanc et le texte noir reste noir (sinon rendu inversé).
+      it.image(0, 0, id(dashboard_image), COLOR_OFF, COLOR_ON);
 
 # --- Diagnostics exposés à Home Assistant ---------------------------------
 sensor:

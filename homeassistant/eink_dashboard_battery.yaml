@@ -14,7 +14,8 @@
 input_text:
   eink_dashboard_shown_hash:
     name: "Eink dashboard - hash affiché"
-    max: 32
+    # 16 hex + éventuel suffixe "-lowbat" publié par l'ESP quand la batterie est basse.
+    max: 40
     # Mis à jour par l'automation ci-dessous à partir du text_sensor de l'ESP.
 
 input_boolean:
@@ -48,6 +49,23 @@ automation:
           entity_id: input_text.eink_dashboard_shown_hash
         data:
           value: "{{ states('sensor.eink_dashboard_content_hash') }}"
+    mode: single
+
+  - alias: "Eink dashboard - alerte batterie faible"
+    id: eink_dashboard_battery_low_alert
+    trigger:
+      - trigger: state
+        entity_id: binary_sensor.eink_dashboard_batterie_faible
+        to: "on"
+        for: "00:10:00"
+    action:
+      - service: persistent_notification.create
+        data:
+          notification_id: eink_dashboard_battery_low
+          title: "Panneau e-ink : batterie faible"
+          message: >
+            Batterie à {{ states('sensor.eink_dashboard_batterie') }} %
+            ({{ states('sensor.eink_dashboard_tension_batterie') }} V). À recharger.
     mode: single
 
 script:

@@ -60,6 +60,14 @@ ne s'affiche pas correctement :
 2. dans `secrets.yaml` : `dashboard_image_url: http://<backend>:9001/image/dashboard.png` ;
 3. dans `xiao-epaper.yaml` : `format: PNG`.
 
+## Rendu noir/blanc
+
+Le BMP 1 bit de Pillow a le bit à 1 sur les pixels **blancs** ; `online_image`
+`type: BINARY` dessine un bit à 1 en avant-plan. Le lambda du `display` échange
+donc `COLOR_OFF, COLOR_ON` pour garder fond blanc / texte noir. En cas de
+bascule vers `format: PNG`, revérifier ce point (le retirer si le PNG s'affiche
+déjà à l'endroit).
+
 ## Pinout de référence (Seeed)
 
 | Fonction | GPIO |
@@ -92,11 +100,21 @@ Différences :
   Le backend renvoie 180 s de 07:30 à 09:00, 1800 s en journée calme, 300 s si une
   perturbation est active ou une station Vélo'v sous 3 vélos, et « dors jusqu'à
   07:30 » (plafonné 4 h) la nuit.
+- gel du contenu : de 09:00 à 21:00 le hash ne réagit qu'aux évènements
+  (perturbation, Vélo'v bas) ; de **21:00 à 07:30 le hash est totalement figé**
+  → aucun redessin la nuit, l'en-tête affiche « MAJ HH:MM ».
+- mesure batterie : pont diviseur /2 de la carte pilote, `output` GPIO6 (enable,
+  HIGH le temps de la lecture), `adc` GPIO1 `×2`. Exposé en
+  `sensor.*_tension_batterie` / `sensor.*_batterie` (%) / `binary_sensor.*_batterie_faible`.
+- pastille « batterie faible » dessinée sur l'e-paper quand la tension passe sous
+  ~3,55 V (masquée au-dessus de 3,65 V) ; le suffixe `-lowbat` sur le hash comparé
+  force le redraw d'apparition / disparition.
 
 Utiliser le package HA **`homeassistant/eink_dashboard_battery.yaml`** (à la place
 de `eink_dashboard.yaml`) et renseigner `static_ip` / `gateway` / `subnet` dans
-`secrets.yaml`. Pour un OTA : activer `input_boolean.eink_dashboard_maintenance`,
-attendre un réveil, flasher, désactiver.
+`secrets.yaml`. Migration détaillée : `docs/2026-09-03-test-materiel-checklist.md`
+§10bis. Pour un OTA : activer `input_boolean.eink_dashboard_maintenance`, attendre
+un réveil, flasher, désactiver.
 
 ## Rollback vers TRMNL
 

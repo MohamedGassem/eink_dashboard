@@ -700,5 +700,40 @@ mode batterie sera actif, hors hash.
   brut).
 
 Non fait : `NIGHT_MAX_SLEEP` reste à 4 h (le gel du hash suffit ; passer à 6 h
-n'économise qu'un réveil Wi-Fi/nuit contre une latence OTA doublée). Point 3
-(mesure batterie, sonde ADC GPIO0/GPIO1) non démarré.
+n'économise qu'un réveil Wi-Fi/nuit contre une latence OTA doublée).
+
+---
+
+## 22. Delta 2026-09-03d — migration mode batterie + mesure batterie
+
+Décision : passer le panneau en deep sleep pour de vrai (il tournait en fait le
+firmware secteur *sur batterie* → ~1 j d'autonomie).
+
+**Firmware `xiao-epaper-battery.yaml` (`esphome config` + `esphome compile` verts,
+RAM 13.8 % / Flash 57.2 %) :**
+
+- report des correctifs matériels validés sur le firmware secteur : `friendly_name`
+  = « Eink Dashboard » (le tiret cassait le slug HA), `post_connect_roaming: false`
+  (roaming Freebox qui redémarrait l'adaptateur ~50 s).
+- mesure batterie : pont diviseur /2 de la carte pilote Seeed, `output` GPIO6
+  (enable, HIGH le temps de la mesure), `adc` GPIO1 `×2`. Exposé en
+  `sensor.*_tension_batterie` (V) + `sensor.*_batterie` (%, courbe LiPo approx.,
+  `device_class: battery`) + `binary_sensor.*_batterie_faible`.
+- lecture pendant la fenêtre de 6 s déjà présente dans le cycle de réveil → zéro
+  temps de réveil en plus.
+- pastille « batterie faible » dessinée par le `lambda` du `display` (batterie +
+  « ! » dans la zone vide de l'en-tête) quand `battery_low` ; hystérésis 3.55 /
+  3.65 V portée par un global `restore_value: yes`.
+- `battery_low` ajoute le suffixe `-lowbat` au hash comparé → franchir le seuil
+  force **un** redraw (apparition/disparition de la pastille), sinon écran figé.
+  Rendu 100 % côté ESP, aucun changement backend.
+
+**Package HA `eink_dashboard_battery.yaml` :** `input_text` max 32 → 40 (suffixe
+`-lowbat`), automation `persistent_notification` sur `binary_sensor.*_batterie_faible`
+maintenu 10 min.
+
+**À valider sur matériel** (checklist §10bis, réécrite) : l'hypothèse broche
+enable = GPIO6 vient du cookbook PlatformIO Seeed EE0x ; à confirmer, repli GPIO7.
+
+Non fait : affichage du `%` exact sur l'e-paper (seule la pastille « faible »
+apparaît) ; réglage fin de la courbe LiPo (à caler avec une vraie décharge).
