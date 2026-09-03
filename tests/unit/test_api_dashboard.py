@@ -105,6 +105,22 @@ def test_dashboard_returns_empty_lists_without_data() -> None:
     assert body["velov"]["stations"] == []
 
 
+def test_preview_png_renders_an_image() -> None:
+    now = datetime.now(ZoneInfo("Europe/Paris"))
+    response = build_client(filled_store(now)).get("/preview.png")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_preview_png_works_on_an_empty_store() -> None:
+    response = build_client(Store()).get("/preview.png")
+
+    assert response.status_code == 200
+    assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_dashboard_marks_a_failed_stop_as_unavailable() -> None:
     now = datetime.now(ZoneInfo("Europe/Paris"))
     store = Store()
