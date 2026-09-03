@@ -35,7 +35,7 @@ sensors se rejoignent → repos.
 3. **Renseigner le secret** — ajouter à `<config_ha>/secrets.yaml` :
 
    ```yaml
-   eink_dashboard_meta_url: "http://<IP_BACKEND>:8000/api/v1/display/meta"
+   eink_dashboard_meta_url: "http://<IP_BACKEND>:9001/api/v1/display/meta"
    ```
 
 4. **Adopter le device ESPHome** (intégration ESPHome → Découvert → Configurer).

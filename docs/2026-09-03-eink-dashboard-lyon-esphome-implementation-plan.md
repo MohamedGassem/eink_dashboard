@@ -378,7 +378,7 @@ Pas de nouvelle logique métier : `refresh_rate_for` et `content_hash()` existen
   (`name: "Content hash"`), `text_sensor.version`, `binary_sensor.status`
 
 **`secrets.example.yaml`** : `wifi_ssid`, `wifi_password`, `api_encryption_key`,
-`ota_password`, `dashboard_image_url` (`http://<IP_BACKEND>:8000/image/dashboard.bmp`).
+`ota_password`, `dashboard_image_url` (`http://<IP_BACKEND>:9001/image/dashboard.bmp`).
 
 **Note fallback** (dans le README) : `/image/dashboard.png` est déjà exposé
 (Task 1). Si le BMP 1 bit ne décode pas proprement sur l'ESP32-C3, il suffit de
@@ -449,7 +449,7 @@ script:
 > l'ESP (domaine `sensor` côté HA). Si le device n'est pas nommé `eink-dashboard`,
 > ajuster ce nom et celui du service `esphome.<name>_refresh` — voir README.
 
-**`secrets.example.yaml`** : `eink_dashboard_meta_url: http://<IP_BACKEND>:8000/api/v1/display/meta`.
+**`secrets.example.yaml`** : `eink_dashboard_meta_url: http://<IP_BACKEND>:9001/api/v1/display/meta`.
 
 **`README.md`** : activer `packages:` dans `configuration.yaml`, copier le fichier,
 renseigner les secrets, adopter le device ESPHome, vérifier les noms d'entités /

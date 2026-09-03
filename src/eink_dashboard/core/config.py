@@ -155,7 +155,7 @@ class Settings(BaseSettings):
     grandlyon_password: str = ""
     device_mac: str = ""
     device_api_key: str = ""
-    public_base_url: str = "http://localhost:8000"
+    public_base_url: str = "http://localhost:9001"
     tz: str = "Europe/Paris"
     log_level: str = "INFO"
     tcl_refresh_seconds: int = Field(default=60, gt=0)

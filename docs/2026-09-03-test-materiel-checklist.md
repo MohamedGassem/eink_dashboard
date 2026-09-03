@@ -35,7 +35,7 @@ Noter le `content_hash` courant : `________________`
 ```bash
 cp firmware/secrets.example.yaml firmware/secrets.yaml
 #  -> wifi_ssid, wifi_password, api_encryption_key (openssl rand -base64 32),
-#     ota_password, dashboard_image_url = http://<IP_BACKEND>:8000/image/dashboard.bmp
+#     ota_password, dashboard_image_url = http://<IP_BACKEND>:9001/image/dashboard.bmp
 esphome config firmware/xiao-epaper.yaml        # doit sortir "Configuration is valid!"
 esphome run firmware/xiao-epaper.yaml           # USB ; si refus : BOOT+RESET puis relancer
 ```
@@ -85,7 +85,7 @@ data:
 
 ```bash
 cp homeassistant/eink_dashboard.yaml <config_ha>/packages/eink_dashboard.yaml
-# secrets.yaml HA : eink_dashboard_meta_url: http://<IP_BACKEND>:8000/api/v1/display/meta
+# secrets.yaml HA : eink_dashboard_meta_url: http://<IP_BACKEND>:9001/api/v1/display/meta
 ```
 
 - [ ] packages activés (`homeassistant: packages: !include_dir_named packages`)

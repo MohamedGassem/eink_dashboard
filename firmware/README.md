@@ -41,7 +41,7 @@ Les flashs suivants passent par OTA (pas de deep sleep → toujours joignable).
    `text_sensor` (`Content hash`). Les reporter dans `homeassistant/README.md`
    si `<name>` ≠ `eink_dashboard`.
 3. Outils de développement → Services → appeler `esphome.eink_dashboard_refresh`
-   avec le `content_hash` courant (lu sur `http://<backend>:8000/api/v1/display/meta`).
+   avec le `content_hash` courant (lu sur `http://<backend>:9001/api/v1/display/meta`).
    L'écran doit se dessiner.
 
 ## Vérifications matérielles (checklist complète : `docs/2026-09-03-test-materiel-checklist.md`)
@@ -57,7 +57,7 @@ ne s'affiche pas correctement :
 
 1. ajouter côté backend une route `GET /image/dashboard.png` (le pipeline a déjà
    `to_png_bytes`), même `ETag` ;
-2. dans `secrets.yaml` : `dashboard_image_url: http://<backend>:8000/image/dashboard.png` ;
+2. dans `secrets.yaml` : `dashboard_image_url: http://<backend>:9001/image/dashboard.png` ;
 3. dans `xiao-epaper.yaml` : `format: PNG`.
 
 ## Pinout de référence (Seeed)
