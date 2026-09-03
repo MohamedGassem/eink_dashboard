@@ -852,6 +852,24 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   `render/layout.py` adapté aux nouveaux types (le redécoupage en zones fixes
   et les fixtures d'états dégradés sont la phase 15).
 
+## Delta phase 15 — layout Pillow en zones fixes (Task 8)
+
+- `render/layout.py` réécrit avec des constantes de zones nommées
+  (`HEADER/TRANSIT/BIKES/CONTEXT/WEATHER _TOP/_BOTTOM`).
+- Transit : `T2 → destination` à gauche, `first_wait` en gras 36 px, passages
+  suivants en 22 px alignés à droite, plus de titre d'arrêt.
+- Vélo'v : titre, label à gauche, nombre de vélos en gras aligné à droite, le
+  `0` reste très lisible sans niveaux de gris.
+- Zone contextuelle : perturbations avant météo, 1 ligne par alerte courte ; une
+  alerte qui déborde sur 2 lignes prend toute la zone et la 2ᵉ est omise ;
+  `traffic_note` sinon. `⚠` vérifié présent dans DejaVu Sans, avec repli `!`
+  via `_glyph_or`. Pas de scroll, tout tronqué à la largeur pixel, rendu
+  déterministe.
+- `tests/unit/test_layout.py` : 13 scénarios paramétrés (nominal, T2, D, T2+D,
+  info trafic indisponible, météo indisponible, 0 vélo, libellés longs, 4
+  passages, aucune donnée TCL, alerte longue) — chacun rend une frame complète,
+  déterministe, et toutes distinctes.
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`
