@@ -821,6 +821,18 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   précipitation, tz-aware, payload malformé), client (params, erreur HTTP),
   live `@pytest.mark.network`.
 
+## Delta phase 13 — câblage des 4 providers (Task 6)
+
+- `main.py` : instancie `TclDisruptionsClient` (si `[tcl.disruptions].lines`) et
+  `WeatherClient` (si `[weather]`), une tâche asyncio par provider. `tz` partagé.
+- `services/dashboard.py` : `dashboard_payload` gagne `tcl_disruptions` (liste des
+  perturbations normalisées + santé) et `weather` (snapshot + santé), avec deux
+  nouveaux seuils de fraîcheur en kwargs.
+- `/health` expose `tcl_disruptions` et `weather`.
+- Absence de `[weather]` / `[tcl.disruptions]` → démarrage normal (providers non
+  instanciés). Perturbations suivies sans `LineRef` → `validate_runtime_requirements`
+  lève au démarrage (pas de faux « trafic normal »).
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`

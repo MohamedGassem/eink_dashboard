@@ -21,6 +21,10 @@ async def dashboard(store: StoreDep, settings: SettingsDep, tz: TzDep) -> dict[s
         now,
         tcl_stale_after_seconds=settings.tcl_refresh_seconds * STALE_INTERVAL_FACTOR,
         velov_stale_after_seconds=settings.velov_refresh_seconds * STALE_INTERVAL_FACTOR,
+        tcl_disruptions_stale_after_seconds=(
+            settings.tcl_disruptions_refresh_seconds * STALE_INTERVAL_FACTOR
+        ),
+        weather_stale_after_seconds=settings.weather_refresh_seconds * STALE_INTERVAL_FACTOR,
     )
 
 

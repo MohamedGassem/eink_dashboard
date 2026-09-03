@@ -19,7 +19,9 @@ from eink_dashboard.core.config import (
 from eink_dashboard.core.logging import configure_logging
 from eink_dashboard.providers.base import Provider
 from eink_dashboard.providers.tcl.client import TclClient
+from eink_dashboard.providers.tcl_sx.client import TclDisruptionsClient
 from eink_dashboard.providers.velov.client import VelovClient
+from eink_dashboard.providers.weather.client import WeatherClient
 from eink_dashboard.render.images import ImageCache
 from eink_dashboard.scheduler import run_provider_loop
 from eink_dashboard.state import Store
@@ -59,6 +61,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 settings.grandlyon_username,
                 settings.grandlyon_password,
                 interval=settings.tcl_refresh_seconds,
+            )
+        )
+    if config.disruptions is not None and config.disruptions.lines:
+        providers.append(
+            TclDisruptionsClient(
+                http,
+                config.disruptions,
+                settings.grandlyon_username,
+                settings.grandlyon_password,
+                tz,
+                interval=settings.tcl_disruptions_refresh_seconds,
+            )
+        )
+    if config.weather is not None:
+        providers.append(
+            WeatherClient(
+                http,
+                config.weather,
+                tz,
+                interval=settings.weather_refresh_seconds,
             )
         )
 

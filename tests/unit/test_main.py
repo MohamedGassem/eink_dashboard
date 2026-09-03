@@ -10,7 +10,9 @@ import respx
 from eink_dashboard.core.config import get_settings
 from eink_dashboard.main import app, lifespan
 from eink_dashboard.providers.tcl.client import PASSAGES_URL
+from eink_dashboard.providers.tcl_sx.client import SITUATION_EXCHANGE_URL
 from eink_dashboard.providers.velov.client import INFORMATION_URL, STATUS_URL
+from eink_dashboard.providers.weather.client import FORECAST_URL
 from eink_dashboard.state import Store
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -109,3 +111,50 @@ async def _tick() -> None:
     import asyncio
 
     await asyncio.sleep(0)
+
+
+WEATHER_BODY = json.loads((FIXTURES / "open_meteo_forecast.json").read_text(encoding="utf-8"))
+SX_BODY = {"Siri": {"ServiceDelivery": {"SituationExchangeDelivery": []}}}
+
+
+@respx.mock
+async def test_lifespan_wires_the_four_providers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = tmp_path / "dashboard.toml"
+    config.write_text(
+        '[[tcl.stops]]\nname = "A"\nstop_id = "1"\nlines = ["T2"]\n'
+        '[tcl.disruptions]\nlines = ["T2"]\n'
+        '[[tcl.disruptions.line_refs]]\nlabel = "T2"\nrefs = ["ActIV:Line::T2:SYTRAL"]\n'
+        '[[velov.stations]]\nstation_id = "1032"\nlabel = "Pizay"\n'
+        "[weather]\nlatitude = 45.75\nlongitude = 4.85\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CONFIG_PATH", str(config))
+    monkeypatch.setenv("GRANDLYON_USERNAME", "u")
+    monkeypatch.setenv("GRANDLYON_PASSWORD", "p")
+    monkeypatch.setenv("DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
+    monkeypatch.setenv("DEVICE_API_KEY", "k")
+    get_settings.cache_clear()
+
+    respx.get(STATUS_URL).mock(return_value=httpx.Response(200, json=STATUS))
+    respx.get(INFORMATION_URL).mock(return_value=httpx.Response(200, json=INFORMATION))
+    respx.get(PASSAGES_URL).mock(
+        return_value=httpx.Response(200, json={"nb_results": 0, "values": []})
+    )
+    respx.get(SITUATION_EXCHANGE_URL).mock(return_value=httpx.Response(200, json=SX_BODY))
+    respx.get(FORECAST_URL).mock(return_value=httpx.Response(200, json=WEATHER_BODY))
+
+    async with lifespan(app):
+        store: Store = app.state.store
+        for _ in range(200):
+            ready = store.state.weather.data is not None
+            ready = ready and store.state.tcl_disruptions.data is not None
+            if ready:
+                break
+            await _tick()
+
+    assert store.state.weather.data is not None
+    assert store.state.tcl_disruptions.data == ()
+
+    get_settings.cache_clear()
