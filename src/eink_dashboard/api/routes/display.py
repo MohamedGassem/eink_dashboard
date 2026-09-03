@@ -21,7 +21,7 @@ from eink_dashboard.api.deps import ConfigDep, ImagesDep, SettingsDep, StoreDep,
 from eink_dashboard.core.config import DashboardConfig, Settings
 from eink_dashboard.render.images import ImageCache, to_bmp_bytes, to_png_bytes
 from eink_dashboard.render.layout import render
-from eink_dashboard.services.dashboard import refresh_rate_for, view_for
+from eink_dashboard.services.dashboard import refresh_rate_for, view_for, view_has_event
 from eink_dashboard.state import Store
 
 router = APIRouter()
@@ -65,7 +65,7 @@ async def display_meta(
     view = view_for(store, config, settings, now)
     return {
         "content_hash": view.content_hash(),
-        "refresh_seconds": refresh_rate_for(now),
+        "refresh_seconds": refresh_rate_for(now, has_event=view_has_event(view)),
     }
 
 

@@ -34,7 +34,9 @@ def _current_image(
     tz: tzinfo,
     images: ImageCache,
 ) -> str:
-    view = view_for(store, config, settings, datetime.now(tz))
+    # Le protocole TRMNL (legacy / rollback) garde l'image « pleine fidélité » :
+    # pas de gel de contenu en journée, contrairement au panneau ESPHome.
+    view = view_for(store, config, settings, datetime.now(tz), coarse_enabled=False)
     filename = f"dash-{view.content_hash()}.bmp"
     if images.get(filename) is None:
         images.put(filename, to_bmp_bytes(render(view)))

@@ -1,9 +1,9 @@
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from eink_dashboard.core.config import DashboardConfig, Settings
-from eink_dashboard.render.viewmodel import DashboardView, build_view
+from eink_dashboard.render.viewmodel import LOW_BIKES_THRESHOLD, DashboardView, build_view
 from eink_dashboard.state import DashboardState, ProviderResult, Store
 
 # La spec §8 bascule un fournisseur en ``stale`` au-delà de trois fois son
@@ -12,7 +12,12 @@ STALE_INTERVAL_FACTOR = 3
 
 
 def view_for(
-    store: Store, config: DashboardConfig, settings: Settings, now: datetime
+    store: Store,
+    config: DashboardConfig,
+    settings: Settings,
+    now: datetime,
+    *,
+    coarse_enabled: bool = True,
 ) -> DashboardView:
     return build_view(
         store.state,
@@ -24,6 +29,7 @@ def view_for(
             settings.tcl_disruptions_refresh_seconds * STALE_INTERVAL_FACTOR
         ),
         weather_stale_after_seconds=settings.weather_refresh_seconds * STALE_INTERVAL_FACTOR,
+        coarse_enabled=coarse_enabled,
     )
 
 
@@ -116,22 +122,39 @@ def dashboard_payload(
     }
 
 
-# Cadence de réveil du panneau : court en pointe TCL, moyen en journée, long la nuit.
-PEAK_REFRESH = 120
-DAY_REFRESH = 300
-NIGHT_REFRESH = 3600
+# Cadence de réveil du panneau (secondes), pensée pour le mode batterie / deep sleep.
+#   07:30 à 09:00 : décision du trajet, on rafraîchit souvent.
+#   09:00 à 21:00 : rien par défaut ; on raccourcit uniquement si un évènement est en cours.
+#   21:00 à 07:30 : on dort jusqu'au matin (plafonné : OTA, dérive d'horloge).
+PEAK_REFRESH = 180
+DAY_EVENT_REFRESH = 300
+DAY_IDLE_REFRESH = 1800
+NIGHT_MAX_SLEEP = 4 * 3600
 
-_MORNING_PEAK = (7 * 60, 9 * 60 + 30)
-_EVENING_PEAK = (17 * 60, 19 * 60 + 30)
-_NIGHT_START = 23 * 60
-_NIGHT_END = 6 * 60
+_MORNING_START = 7 * 60 + 30
+_PEAK_END = 9 * 60
+_NIGHT_START = 21 * 60
 
 
-def refresh_rate_for(now: datetime) -> int:
+def view_has_event(view: DashboardView) -> bool:
+    """Un évènement (perturbation active ou station Vélo'v basse) justifie de
+    raccourcir la cadence et de rafraîchir le panneau en pleine journée."""
+    if view.alerts or view.traffic_note:
+        return True
+    return any(row.stale or row.bikes < LOW_BIKES_THRESHOLD for row in view.bikes)
+
+
+def _seconds_until(now: datetime, hour: int, minute: int) -> int:
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return int((target - now).total_seconds())
+
+
+def refresh_rate_for(now: datetime, *, has_event: bool = False) -> int:
     minutes = now.hour * 60 + now.minute
-    if minutes >= _NIGHT_START or minutes < _NIGHT_END:
-        return NIGHT_REFRESH
-    for start, end in (_MORNING_PEAK, _EVENING_PEAK):
-        if start <= minutes < end:
-            return PEAK_REFRESH
-    return DAY_REFRESH
+    if minutes >= _NIGHT_START or minutes < _MORNING_START:
+        return min(_seconds_until(now, 7, 30), NIGHT_MAX_SLEEP)
+    if minutes < _PEAK_END:
+        return PEAK_REFRESH
+    return DAY_EVENT_REFRESH if has_event else DAY_IDLE_REFRESH

@@ -9,7 +9,7 @@ from PIL import Image
 from eink_dashboard.api.routes import device, display
 from eink_dashboard.core.config import DashboardConfig, Settings
 from eink_dashboard.domain.bikes import BikeStation
-from eink_dashboard.services.dashboard import DAY_REFRESH, NIGHT_REFRESH, PEAK_REFRESH
+from eink_dashboard.services.dashboard import NIGHT_MAX_SLEEP
 from eink_dashboard.state import Store
 
 MAC = "AA:BB:CC:DD:EE:FF"
@@ -63,8 +63,7 @@ def test_meta_content_hash_is_16_hex_chars() -> None:
 def test_meta_refresh_seconds_matches_the_schedule() -> None:
     refresh_seconds = build_client().get("/api/v1/display/meta").json()["refresh_seconds"]
 
-    assert refresh_seconds in {PEAK_REFRESH, DAY_REFRESH, NIGHT_REFRESH}
-    assert refresh_seconds > 0
+    assert 0 < refresh_seconds <= NIGHT_MAX_SLEEP
 
 
 def test_meta_responds_when_the_backend_has_no_data() -> None:

@@ -104,8 +104,10 @@ def render(view: DashboardView) -> Image.Image:
 
     # --- Header -----------------------------------------------------------
     draw.text((MARGIN, HEADER_TOP), "LYON", font=header_font, fill=BLACK)
-    as_of_width = draw.textlength(view.as_of, font=next_font)
-    draw.text((right - as_of_width, HEADER_TOP + 8), view.as_of, font=next_font, fill=BLACK)
+    # En journée le contenu se fige entre deux évènements : on l'annonce (« MAJ »).
+    as_of_text = f"MAJ {view.as_of}" if view.coarse else view.as_of
+    as_of_width = draw.textlength(as_of_text, font=next_font)
+    draw.text((right - as_of_width, HEADER_TOP + 8), as_of_text, font=next_font, fill=BLACK)
     draw.line([(MARGIN, HEADER_RULE_Y), (right, HEADER_RULE_Y)], fill=BLACK, width=2)
 
     # --- Transit ---------------------------------------------------------

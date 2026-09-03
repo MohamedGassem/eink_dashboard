@@ -297,3 +297,94 @@ def test_removing_an_expired_disruption_changes_the_hash() -> None:
         ).state
     )
     assert active.content_hash() != gone.content_hash()
+
+
+# --- 7.6 mode journée : hash grossier entre 09:00 et 21:00 -----------
+
+DAYTIME = T0.replace(hour=14)
+BEFORE_NINE = T0.replace(hour=8)
+
+
+def _fresh_at_daytime(store: Store) -> Store:
+    """Ré-horodate les fournisseurs à DAYTIME (sinon tout est « stale », 6 h après T0)."""
+    for name in ("tcl", "velov", "tcl_disruptions", "weather"):
+        result = getattr(store.state, name)
+        if result.data is not None:
+            store.record_success(name, result.data, DAYTIME)
+    return store
+
+
+def _daytime_store(**kwargs: object) -> Store:
+    return _fresh_at_daytime(store_with(**kwargs))  # type: ignore[arg-type]
+
+
+def _calm_bikes() -> tuple[BikeStation, ...]:
+    return (
+        BikeStation("7052", "Blandan", 8, 8, 0, 12, 20, True, DAYTIME),
+        BikeStation("7023", "Berthelot", 6, 3, 3, 10, 16, True, DAYTIME),
+    )
+
+
+def test_coarse_flag_is_only_set_inside_the_daytime_window() -> None:
+    assert view_of(_daytime_store().state, DAYTIME).coarse is True
+    assert view_of(store_with().state, BEFORE_NINE).coarse is False
+
+
+def test_daytime_hash_ignores_departure_countdowns() -> None:
+    base = view_of(_daytime_store().state, DAYTIME)
+    store = _daytime_store()
+    store.state.tcl.data = tuple(
+        StopBoard(
+            stop_name=board.stop_name,
+            departures=tuple(
+                Departure(
+                    dep.line, dep.direction, dep.expected_at + timedelta(minutes=5), dep.is_realtime
+                )
+                for dep in board.departures
+            ),
+        )
+        for board in store.state.tcl.data or ()
+    )
+    assert view_of(store.state, DAYTIME).content_hash() == base.content_hash()
+
+
+def test_daytime_hash_ignores_weather() -> None:
+    base = view_of(_daytime_store(weather=WeatherSnapshot(12.0, None, DAYTIME)).state, DAYTIME)
+    warmer = view_of(
+        _daytime_store(weather=WeatherSnapshot(25.0, T0.replace(hour=16), DAYTIME)).state, DAYTIME
+    )
+    assert base.content_hash() == warmer.content_hash()
+
+
+def test_daytime_hash_reacts_to_a_new_disruption() -> None:
+    active = _disruption(
+        "A",
+        ("T2",),
+        valid_from=DAYTIME - timedelta(hours=1),
+        valid_until=DAYTIME + timedelta(hours=2),
+    )
+    base = view_of(_daytime_store().state, DAYTIME)
+    alert = view_of(_daytime_store(disruptions=(active,)).state, DAYTIME)
+    assert base.content_hash() != alert.content_hash()
+
+
+def test_daytime_hash_reacts_to_bikes_crossing_the_low_threshold() -> None:
+    store = _daytime_store()
+    store.state.velov.data = _calm_bikes()
+    base = view_of(store.state, DAYTIME)
+    store.state.velov.data = (
+        BikeStation("7052", "Blandan", 2, 2, 0, 18, 20, True, DAYTIME),
+        BikeStation("7023", "Berthelot", 6, 3, 3, 10, 16, True, DAYTIME),
+    )
+    assert view_of(store.state, DAYTIME).content_hash() != base.content_hash()
+
+
+def test_daytime_hash_ignores_bike_changes_that_stay_above_the_threshold() -> None:
+    store = _daytime_store()
+    store.state.velov.data = _calm_bikes()
+    base = view_of(store.state, DAYTIME)
+    store.state.velov.data = (
+        BikeStation("7052", "Blandan", 15, 15, 0, 5, 20, True, DAYTIME),
+        BikeStation("7023", "Berthelot", 4, 2, 2, 12, 16, True, DAYTIME),
+    )
+    assert view_of(store.state, DAYTIME).content_hash() == base.content_hash()
