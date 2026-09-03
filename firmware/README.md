@@ -73,6 +73,31 @@ ne s'affiche pas correctement :
 
 `board: esp32-c3-devkitm-1`, `display model: 7.50inv2`.
 
+## Mode batterie / deep sleep (`xiao-epaper-battery.yaml`)
+
+Variante **non encore validée sur matériel**. `xiao-epaper.yaml` (secteur, pas de
+deep sleep) reste la référence tant que le test §10bis de la checklist n'est pas
+passé.
+
+Différences :
+
+- l'ESP se réveille seul, fait un cycle complet, se rendort — HA n'appelle plus
+  de service `refresh` ;
+- au réveil il importe de HA : `sensor.eink_dashboard_target_hash` (+ attribut
+  `refresh_seconds`), `input_text.eink_dashboard_shown_hash`,
+  `input_boolean.eink_dashboard_maintenance` ;
+- il ne redessine l'e-paper **que si** le hash cible diffère du hash mémorisé par
+  HA ; sinon il se rendort sans toucher l'écran ;
+- `sleep_duration` = `refresh_seconds` fourni par le backend, borné [60 s, 6 h].
+  Le backend renvoie 180 s de 07:30 à 09:00, 1800 s en journée calme, 300 s si une
+  perturbation est active ou une station Vélo'v sous 3 vélos, et « dors jusqu'à
+  07:30 » (plafonné 4 h) la nuit.
+
+Utiliser le package HA **`homeassistant/eink_dashboard_battery.yaml`** (à la place
+de `eink_dashboard.yaml`) et renseigner `static_ip` / `gateway` / `subnet` dans
+`secrets.yaml`. Pour un OTA : activer `input_boolean.eink_dashboard_maintenance`,
+attendre un réveil, flasher, désactiver.
+
 ## Rollback vers TRMNL
 
 Ce firmware ne touche pas le backend. Pour revenir en arrière : reflasher le

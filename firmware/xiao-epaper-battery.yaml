@@ -1,0 +1,205 @@
+# Dashboard e-ink Lyon — firmware ESPHome, VARIANTE MODE BATTERIE (deep sleep).
+#
+#   ⚠️  BROUILLON NON VALIDÉ SUR MATÉRIEL. À passer par `esphome config` puis à
+#       tester selon docs/2026-09-03-test-materiel-checklist.md (§ « Mode batterie »)
+#       avant de le flasher en production. Le firmware secteur `xiao-epaper.yaml`
+#       reste la référence tant que ce fichier n'est pas validé.
+#
+# Différence avec le firmware secteur : ici l'ESP se réveille seul (deep sleep),
+# fait tout le travail en un cycle, puis se rendort. Home Assistant ne pilote plus
+# le rafraîchissement par un service (l'appareil est injoignable 99 % du temps) :
+# il se contente d'exposer trois entités que l'ESP importe au réveil.
+#
+# Cycle d'un réveil :
+#   1. Wi-Fi + Native API.
+#   2. ~6 s pour laisser HA pousser les entités importées.
+#   3. maintenance ON  -> on reste éveillé (OTA), pas de sommeil.
+#   4. hash cible == hash déjà affiché (mémorisé par HA) -> aucun redessin.
+#      hash cible != hash affiché                        -> download BMP + redessin.
+#   5. deep sleep pour `refresh_seconds` (fourni par HA via /api/v1/display/meta),
+#      borné [60 s, 6 h].
+#
+# Contrat Home Assistant (voir homeassistant/eink_dashboard_battery.yaml) :
+#   sensor.eink_dashboard_target_hash       state = hash cible, attribut refresh_seconds
+#   input_text.eink_dashboard_shown_hash    ce que HA croit affiché à l'écran
+#   input_boolean.eink_dashboard_maintenance  fenêtre où l'ESP reste éveillé (OTA)
+
+substitutions:
+  device_name: eink-dashboard
+  friendly_name: "E-ink Dashboard"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "réveil : début du cycle de rafraîchissement"
+      - wait_until:
+          condition:
+            and:
+              - wifi.connected:
+              - api.connected:
+          timeout: 30s
+      # Laisse la Native API livrer les entités importées depuis HA.
+      - delay: 6s
+      - if:
+          condition:
+            lambda: "return id(maintenance_mode).state;"
+          then:
+            - logger.log: "maintenance ON : l'appareil reste éveillé (pas de deep sleep)"
+            - deep_sleep.prevent: ds
+          else:
+            - lambda: |-
+                const std::string target = id(ha_target_hash).state;
+                const std::string shown = id(ha_shown_hash).state;
+                id(pending_hash) = target;
+                id(need_redraw) = (!target.empty() && target != shown);
+            - if:
+                condition:
+                  lambda: "return id(need_redraw);"
+                then:
+                  - logger.log:
+                      format: "contenu changé (%s), téléchargement"
+                      args: ["id(pending_hash).c_str()"]
+                  - component.update: dashboard_image   # -> on_download_finished / on_error
+                else:
+                  - logger.log: "contenu inchangé, rendormissement immédiat"
+                  - script.execute: enter_sleep
+
+esp32:
+  board: esp32-c3-devkitm-1
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Reconnexion la plus rapide possible : c'est le poste de conso dominant d'un réveil.
+  fast_connect: true
+  # Renseigner dans secrets.yaml pour éviter le DHCP à chaque réveil (gros gain).
+  manual_ip:
+    static_ip: !secret static_ip
+    gateway: !secret gateway
+    subnet: !secret subnet
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# Deep sleep : `run_duration` est un failsafe (si le cycle se bloque, on dort
+# quand même) ; en fonctionnement normal c'est `enter_sleep` qui déclenche le
+# sommeil, plus tôt, avec la durée fournie par HA.
+deep_sleep:
+  id: ds
+  run_duration: 120s
+  sleep_duration: 30min
+
+globals:
+  - id: pending_hash
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: need_redraw
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+http_request:
+  timeout: 15s
+
+# --- Entités importées de Home Assistant ---------------------------------
+text_sensor:
+  - platform: homeassistant
+    id: ha_target_hash
+    entity_id: sensor.eink_dashboard_target_hash
+  - platform: homeassistant
+    id: ha_shown_hash
+    entity_id: input_text.eink_dashboard_shown_hash
+  - platform: version
+    name: "ESPHome version"
+  - platform: template
+    id: shown_hash
+    name: "Content hash"
+
+sensor:
+  - platform: homeassistant
+    id: ha_sleep_seconds
+    entity_id: sensor.eink_dashboard_target_hash
+    attribute: refresh_seconds
+  - platform: wifi_signal
+    name: "WiFi signal"
+    update_interval: 60s
+
+binary_sensor:
+  - platform: homeassistant
+    id: maintenance_mode
+    entity_id: input_boolean.eink_dashboard_maintenance
+  - platform: status
+    name: "Status"
+
+spi:
+  clk_pin: GPIO8
+  mosi_pin: GPIO10
+
+online_image:
+  - id: dashboard_image
+    url: !secret dashboard_image_url
+    format: BMP
+    type: BINARY
+    update_interval: never
+    on_download_finished:
+      - component.update: main_display
+      - text_sensor.template.publish:
+          id: shown_hash
+          state: !lambda "return id(pending_hash);"
+      - logger.log: "image dashboard affichée"
+      - script.execute: enter_sleep
+    on_error:
+      # Pas de publication : HA garde l'ancien hash affiché -> nouvelle tentative
+      # au prochain réveil. Écran inchangé.
+      - logger.log:
+          format: "échec téléchargement image dashboard"
+          level: WARN
+      - script.execute: enter_sleep
+
+display:
+  - platform: waveshare_epaper
+    id: main_display
+    cs_pin: GPIO3
+    dc_pin: GPIO5
+    busy_pin:
+      number: GPIO4
+      inverted: true
+    reset_pin: GPIO2
+    model: 7.50inv2
+    update_interval: never
+    lambda: |-
+      it.image(0, 0, id(dashboard_image));
+
+script:
+  - id: enter_sleep
+    then:
+      - if:
+          condition:
+            lambda: "return id(maintenance_mode).state;"
+          then:
+            - logger.log: "maintenance ON : deep sleep annulé"
+            - deep_sleep.prevent: ds
+          else:
+            - delay: 2s
+            - deep_sleep.enter:
+                id: ds
+                sleep_duration: !lambda |-
+                  float s = id(ha_sleep_seconds).state;
+                  if (isnan(s) || s < 60.0f) s = 1800.0f;   // défaut si HA muet
+                  if (s > 21600.0f) s = 21600.0f;            // plafond 6 h
+                  return (uint32_t) (s * 1000.0f);

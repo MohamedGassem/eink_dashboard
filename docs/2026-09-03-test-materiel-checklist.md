@@ -126,6 +126,46 @@ cp homeassistant/eink_dashboard.yaml <config_ha>/packages/eink_dashboard.yaml
 
 ---
 
+## 10bis. Mode batterie / deep sleep (optionnel, après un verdict OK sur secteur)
+
+Ne pas tester avant que la boucle secteur soit stable 48 h. Matériel en plus :
+une LiPo 1S sur le connecteur JST du panneau, un multimètre / wattmètre USB en
+série pour mesurer la conso.
+
+```bash
+esphome config firmware/xiao-epaper-battery.yaml     # doit être "Configuration is valid!"
+```
+
+- [ ] `esphome config` valide (corriger pins / options ; c'est un brouillon non
+      encore passé par le compilateur ESPHome)
+- [ ] installer le package HA **variante batterie** *à la place* de l'autre :
+      `cp homeassistant/eink_dashboard_battery.yaml <config_ha>/packages/eink_dashboard.yaml`
+      (supprimer l'ancien `eink_dashboard.yaml` : les deux définissent le même `rest`)
+- [ ] créer les entités : recharger, vérifier `input_text.eink_dashboard_shown_hash`
+      et `input_boolean.eink_dashboard_maintenance`
+- [ ] `secrets.yaml` firmware : renseigner `static_ip` / `gateway` / `subnet`
+      (IP fixe de l'ESP, hors plage DHCP)
+- [ ] activer `input_boolean.eink_dashboard_maintenance` **avant** le flash
+      (sinon l'ESP se rendort avant l'OTA)
+- [ ] `esphome run firmware/xiao-epaper-battery.yaml` (USB la première fois)
+- [ ] logs : l'ESP boote → connecte Wi-Fi/API → lit `ha_target_hash` / `ha_shown_hash`
+      → dessine si différent → « deep sleep » pour la durée `refresh_seconds`
+- [ ] désactiver `maintenance` → au réveil suivant l'ESP se rendort seul
+- [ ] changer une donnée visible → au réveil suivant (≤ `refresh_seconds`) l'écran
+      se met à jour, `input_text.eink_dashboard_shown_hash` suit
+- [ ] **pas de redraw inutile** : contenu inchangé → le réveil ne redessine pas
+      l'e-paper (log « contenu inchangé, rendormissement immédiat »)
+- [ ] nuit (après 21:00) : `refresh_seconds` renvoie ≥ plusieurs heures (plafonné 4 h)
+- [ ] mesurer la conso : sommeil (~50 µA attendu), pic de réveil (durée × courant),
+      en déduire l'autonomie ; comparer à l'estimation (~3 mois avec 2000 mAh)
+- [ ] OTA : activer `maintenance`, attendre un réveil, `esphome run` par OTA,
+      désactiver `maintenance`
+
+Rollback batterie → secteur : reflasher `firmware/xiao-epaper.yaml`, remettre
+`homeassistant/eink_dashboard.yaml`, débrancher la batterie.
+
+---
+
 ## 10. Verdict
 
 - [ ] **OK** — tout passe, RAM stable, pas de reboot.

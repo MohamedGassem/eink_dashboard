@@ -1,0 +1,63 @@
+# Package Home Assistant — dashboard e-ink Lyon, VARIANTE MODE BATTERIE.
+#
+#   ⚠️  À installer À LA PLACE de eink_dashboard.yaml, pas en plus (les deux
+#       définissent le même `rest` sensor). Valable uniquement avec le firmware
+#       firmware/xiao-epaper-battery.yaml (deep sleep).
+#
+# En mode batterie l'ESP se pilote seul : HA n'appelle plus de service `refresh`.
+# HA se contente de :
+#   - servir le hash cible + `refresh_seconds` (rest sensor, comme en mode secteur) ;
+#   - mémoriser le hash réellement affiché (input_text), que l'ESP relit au réveil ;
+#   - exposer un interrupteur de maintenance (input_boolean) pour garder l'ESP
+#     éveillé le temps d'un OTA.
+
+input_text:
+  eink_dashboard_shown_hash:
+    name: "Eink dashboard - hash affiché"
+    max: 32
+    # Mis à jour par l'automation ci-dessous à partir du text_sensor de l'ESP.
+
+input_boolean:
+  eink_dashboard_maintenance:
+    name: "Eink dashboard - maintenance (empêche le deep sleep)"
+
+rest:
+  - resource: !secret eink_dashboard_meta_url
+    scan_interval: 60
+    sensor:
+      - name: "Eink dashboard target hash"
+        unique_id: eink_dashboard_target_hash
+        value_template: "{{ value_json.content_hash }}"
+        json_attributes:
+          - refresh_seconds
+
+automation:
+  - alias: "Eink dashboard - mémoriser le hash affiché par l'ESP"
+    id: eink_dashboard_battery_remember_shown_hash
+    trigger:
+      - trigger: state
+        entity_id: sensor.eink_dashboard_content_hash   # text_sensor « Content hash » de l'ESP
+    condition:
+      - condition: template
+        value_template: >
+          {{ states('sensor.eink_dashboard_content_hash')
+             not in ['unknown', 'unavailable', 'None', '', 'error'] }}
+    action:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.eink_dashboard_shown_hash
+        data:
+          value: "{{ states('sensor.eink_dashboard_content_hash') }}"
+    mode: single
+
+script:
+  eink_dashboard_force_refresh:
+    alias: "Eink dashboard - forcer un refresh au prochain réveil"
+    sequence:
+      # Vide le hash mémorisé : au prochain réveil l'ESP verra target != shown
+      # et redessinera.
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.eink_dashboard_shown_hash
+        data:
+          value: ""

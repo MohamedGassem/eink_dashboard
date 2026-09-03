@@ -151,10 +151,18 @@ FastAPI fonctionne.
 16 hex). Change si une info visible change ; ne change pas si seule `as_of`
 change ; ne change pas pour une donnée non affichée ; stable entre process.
 
-**`refresh_seconds`** — `refresh_rate_for(now)` : 120 s en pointe TCL, 300 s en
-journée, 3600 s la nuit. Borné côté serveur. En mode secteur (v2), HA poll à
-intervalle fixe et n'utilise ce champ que pour information / debug ; il
-redeviendra la cadence de réveil quand le mode batterie sera activé (§16).
+**`refresh_seconds`** — `refresh_rate_for(now, has_event)`, borné côté serveur
+(voir *Delta 2026-09-…* en fin de document) :
+
+| Créneau | Valeur |
+|---|---|
+| 07:30–09:00 | 180 s |
+| 09:00–21:00, rien à signaler | 1800 s |
+| 09:00–21:00, perturbation active OU station Vélo'v < 3 | 300 s |
+| 21:00–07:30 | secondes jusqu'à 07:30, plafonné 4 h |
+
+En mode secteur (v2), HA poll à intervalle fixe et n'utilise ce champ que pour
+information / debug ; il devient la cadence de réveil en mode batterie (§16).
 
 ### 3.2 `GET /image/dashboard.bmp`
 
@@ -574,19 +582,23 @@ Pré-requis : POC stable + boucle HA stable + **plusieurs jours d'usage réel** 
 
 ## 16. Task 6 (optionnel, plus tard) — Mode batterie / deep sleep
 
-Uniquement si l'autonomie sur secteur n'est plus souhaitée. Réintroduit alors,
-côté firmware seulement :
+**Brouillon livré, non validé sur matériel** (voir *Delta* en fin de document) :
 
-- `deep_sleep:` avec `run_duration` failsafe + sortie explicite `deep_sleep.enter`
-  `sleep_duration: !lambda "return id(next_sleep_ms);"` ;
-- au réveil : laisser quelques secondes à la Native API ; si
-  `input_boolean.eink_dashboard_maintenance == on` → `deep_sleep.prevent` ;
-- `next_sleep_ms` alimenté par HA (entité `number`/`text` importée) à partir de
-  `refresh_seconds` du meta endpoint — **la décision de cadence reste en Python**.
+- `firmware/xiao-epaper-battery.yaml` — l'ESP se réveille seul, fait un cycle
+  complet (Wi-Fi → API → lecture des entités HA → redessin conditionnel → sommeil),
+  puis `deep_sleep.enter` pour `refresh_seconds` borné [60 s, 6 h]. `run_duration`
+  = failsafe. `input_boolean.eink_dashboard_maintenance` → `deep_sleep.prevent`
+  (fenêtre OTA). `fast_connect` + IP statique pour raccourcir le pic de réveil.
+- `homeassistant/eink_dashboard_battery.yaml` — remplace le package secteur. Plus
+  d'appel de service : HA mémorise le hash affiché dans
+  `input_text.eink_dashboard_shown_hash` (mis à jour depuis le `text_sensor` de
+  l'ESP), que l'ESP relit au réveil pour décider s'il redessine.
+- **La décision de cadence reste en Python** (`refresh_rate_for`), l'ESP ne fait
+  qu'obéir à `refresh_seconds`.
 
-Le champ `refresh_seconds` de `/api/v1/display/meta` est déjà prêt pour ça.
-Point de vigilance : l'ESP ne doit jamais attendre HA indéfiniment (timeout court,
-sinon workflow normal).
+Point de vigilance : l'ESP ne doit jamais attendre HA indéfiniment (`wait_until`
+timeout 30 s, `delay 6s` puis on continue avec les valeurs disponibles).
+Autonomie estimée avec ce profil et une LiPo 2000 mAh : ~3 mois (à mesurer).
 
 ---
 
@@ -623,3 +635,41 @@ package HA** — modification Python/Pillow uniquement.
 - ESPHome — Waveshare e-Paper : `https://esphome.io/components/display/waveshare_epaper.html`
 - Home Assistant — RESTful sensor : `https://www.home-assistant.io/integrations/rest/`
 - Home Assistant — Packages : `https://www.home-assistant.io/docs/configuration/packages/`
+- ESPHome — Deep Sleep : `https://esphome.io/components/deep_sleep.html`
+- ESPHome — Import d'entités HA : `https://esphome.io/components/sensor/homeassistant.html`
+
+---
+
+## 20. Delta 2026-09-03b — cadence adaptative + brouillon mode batterie
+
+Motivation : préparer l'autonomie sur batterie. Coût dominant d'un réveil deep
+sleep = la reconnexion Wi-Fi, pas le redessin. Deux leviers : (a) espacer les
+réveils quand il ne se passe rien, (b) ne pas redessiner l'e-paper inutilement.
+
+**Backend (livré, testé — `pytest`/`mypy`/`ruff` verts) :**
+
+- `DashboardView.coarse` (renseigné par `build_view` via `in_coarse_window(now)`).
+  De 09:00 à 21:00 locale, `content_hash()` bascule sur un payload « grossier » :
+  ne réagit qu'aux **alertes** (perturbations / `traffic_note`) et au **passage
+  d'une station Vélo'v sous 3 vélos** (ou `stale`). Comptes à rebours, météo et
+  nombre exact de vélos n'altèrent plus le hash → plus de redraw e-ink pour ça.
+  Hors de cette fenêtre : hash complet, comportement V2 inchangé.
+- Layout : en mode `coarse`, l'heure d'en-tête devient « MAJ HH:MM » (l'écran est
+  figé entre deux évènements, on l'annonce).
+- `refresh_rate_for(now, *, has_event)` réécrit (cf. tableau §3.1). Nouvelles
+  constantes `PEAK_REFRESH=180`, `DAY_EVENT_REFRESH=300`, `DAY_IDLE_REFRESH=1800`,
+  `NIGHT_MAX_SLEEP=4h`. Suppression de `_EVENING_PEAK` (la logique évènement
+  couvre la journée jusqu'à 21:00). `view_has_event(view)` expose le prédicat.
+- `/api/v1/display/meta` passe `has_event=view_has_event(view)`.
+- TRMNL (`device.py`) : `view_for(..., coarse_enabled=False)` → image pleine
+  fidélité conservée, aucun impact sur le protocole legacy.
+
+**Firmware / HA (brouillons, à valider — checklist §10bis) :**
+
+- `firmware/xiao-epaper-battery.yaml`, `homeassistant/eink_dashboard_battery.yaml`
+  (cf. §16). Non passés par `esphome config` (ESPHome non installé en local).
+
+Non fait volontairement : mesure de batterie affichée sur le panneau (le panneau
+Seeed n'expose pas de pont diviseur documenté ; sans intérêt tant qu'on est sur
+secteur). Une icône « batterie faible » pourra être ajoutée côté Pillow quand le
+mode batterie sera actif, hors hash.

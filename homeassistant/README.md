@@ -67,6 +67,15 @@ sensors se rejoignent → repos.
 - **ESP hors ligne** : `content_hash` → `unavailable` ; au retour, l'ESP
   redessine (`wifi.on_connect`) et republie.
 
+## Variante mode batterie
+
+`eink_dashboard_battery.yaml` remplace ce package quand l'ESP tourne sous
+`firmware/xiao-epaper-battery.yaml` (deep sleep). Installer **l'un ou l'autre**,
+jamais les deux (même `rest` sensor). En mode batterie HA n'appelle plus de
+service : il mémorise le hash affiché dans `input_text.eink_dashboard_shown_hash`
+et expose `input_boolean.eink_dashboard_maintenance` (garde l'ESP éveillé pour un
+OTA). Voir `docs/2026-09-03-test-materiel-checklist.md` §10bis.
+
 ## Désinstaller (rollback)
 
 Supprimer `packages/eink_dashboard.yaml`, la ligne de `secrets.yaml`, recharger.
