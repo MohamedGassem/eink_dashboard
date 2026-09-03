@@ -3545,3 +3545,51 @@ sur les deltas précédents :
 
 - Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
 - Rendu Pillow, `/preview.png`, service des BMP — Task 11.
+
+---
+
+## Delta phase 6 — Rendu Pillow et `/preview.png` (Task 11), exécuté le 2026-09-03
+
+Livré sur `feat/p6-render`. 100 tests (2 réseau désélectionnés), `mypy --strict`
+et `ruff` propres. Écarts par rapport au texte de la Task 11, aligné sur les
+deltas précédents :
+
+### Task 11 — polices
+
+- `DejaVuSans.ttf` / `DejaVuSans-Bold.ttf` copiées depuis `C:\Windows\Fonts`
+  (présentes sur la machine de dev) vers `src/eink_dashboard/render/fonts/`, et
+  versionnées. `pyproject.toml` `package-data` les embarque déjà (Task 1), donc
+  `pip install .` dans le conteneur `python:3.12-slim` les fournit.
+
+### Task 11 — `render/layout.py` et `render/images.py`
+
+- `render/images.py` (`to_bmp_bytes`, `to_png_bytes`, `ImageCache`) et
+  `render/layout.py` (`WIDTH`, `HEIGHT`, `render`) repris tels quels du plan.
+- `layout.render` : la boucle Vélo'v itère sur `bike` (pas `block` réutilisé)
+  pour rester lisible sous `mypy --strict` malgré les deux types de blocs.
+  `bike.capacity` est `int | None` (domaine phase 2) et rendu tel quel dans la
+  f-string.
+- `ImageCache` est fourni mais pas encore câblé à une route ; le service des BMP
+  par nom est le travail de la Task 12 (protocole appareil).
+
+### Task 11 — route `/preview.png`
+
+- Ajoutée à `api/routes/dashboard.py`. Consomme `StoreDep` / `SettingsDep` /
+  `TzDep` et passe `refresh_seconds * STALE_INTERVAL_FACTOR` par fournisseur à
+  `build_view`, comme `/api/v1/dashboard` — le `request.app.state.tz` direct du
+  texte du plan n'existe plus depuis la phase 3.
+- `tests/unit/test_api_dashboard.py` : deux cas `/preview.png` (store rempli et
+  store vide) vérifient le `content-type` et la signature PNG.
+
+### Validation visuelle
+
+- Faite en local (pas via Docker) : `render` d'un état représentatif exporté en
+  PNG, relu. 800x480, mode `"1"`, arrêts et stations lisibles. Le bloc central
+  laisse un vide quand il y a peu d'arrêts — acceptable pour ce layout.
+
+### Reste ouvert après phase 6
+
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+- Endpoints du protocole appareil (`/api/setup`, `/api/display`, `/api/log`,
+  `/image/{name}.bmp`) et câblage de `ImageCache` — Task 12.
+- Validation Docker + rendu à taille réelle sur la dalle — Task 12.
