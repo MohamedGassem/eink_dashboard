@@ -785,6 +785,26 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   scheduler tourne déjà une tâche par provider. Sémantique V1 conservée : un
   échec garde la dernière bonne donnée et passe le slot en `error`.
 
+## Delta phase 11 — provider SIRI-SX (Tasks 0, 3, 4)
+
+- Capture réelle : `tests/fixtures/tcl_situation_exchange.json` + fixture
+  synthétique `tcl_situation_exchange_t2_d.json`. Chemins et champs documentés
+  dans `docs/tcl-sx-api-notes.md`. Constat clé : **aucun champ de sévérité ni de
+  cause** — le seul texte est `Description` (parfois du HTML). `LineRef` métro D
+  confirmé (`ActIV:Line::D:SYTRAL`), T2 par convention T4/T7.
+- `providers/tcl_sx/schemas.py` : modèles Pydantic permissifs (`extra="ignore"`,
+  branches absentes tolérées), `SiriDocument.situations()` aplatit l'arbre.
+- `providers/tcl_sx/mapper.py` : `to_disruptions(document, config, now)` — mappe
+  les `LineRef` via la config uniquement (jamais de sous-chaîne dans le texte),
+  nettoie le HTML, déduplique par `SituationNumber`, exclut expirées et futures
+  au-delà de `future_window_hours`, trie par `source_id`.
+- `providers/tcl_sx/client.py` : `TclDisruptionsClient` (Basic auth Grand Lyon,
+  `raise_for_status`, aucun retry local — timeouts/erreurs remontent au
+  scheduler). Retourne un `ProviderSnapshot` pour se brancher comme `tcl`/`velov`.
+- Tests : `test_tcl_sx_mapper.py` (9 scénarios + capture réelle),
+  `test_tcl_sx_client.py` (auth, 401, timeout, corps vide),
+  `tests/integration/test_tcl_sx_live.py` (`@pytest.mark.network`).
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`

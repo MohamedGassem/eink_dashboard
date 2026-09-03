@@ -1,0 +1,552 @@
+{
+ "Siri": {
+  "ServiceDelivery": {
+   "ResponseTimestamp": "2026-09-03T10:00:00Z",
+   "ProducerRef": {
+    "value": "MDL"
+   },
+   "SituationExchangeDelivery": [
+    {
+     "Situations": {
+      "PtSituationElement": [
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-03T04:00:00Z",
+          "EndTime": "2026-09-03T20:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Trafic perturbé entre Jean Macé et Perrache."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_T2_ACTIVE"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-01T00:00:00Z",
+          "EndTime": "2026-09-30T22:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "<p>Station Guilloti&egrave;re non desservie.</p>\n<span>Bus relais.</span>"
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::D:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_D_ACTIVE"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-03T05:00:00Z",
+          "EndTime": "2026-09-03T22:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Mouvement social sur le réseau."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                },
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::D:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_T2_D_BOTH"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-08-01T00:00:00Z",
+          "EndTime": "2026-08-15T00:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Ancienne perturbation T2."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_EXPIRED"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-12-01T00:00:00Z",
+          "EndTime": "2026-12-20T00:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Travaux T2 en décembre."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_FUTURE_FAR"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-03T11:00:00Z",
+          "EndTime": "2026-09-03T15:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Coupure T2 dans une heure."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_FUTURE_NEAR"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-02T00:00:00Z",
+          "EndTime": "2026-09-30T00:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "   "
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::D:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_NO_TEXT"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-02T00:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Perturbation T2 sans fin connue."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_NO_END"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-03T04:00:00Z",
+          "EndTime": "2026-09-03T20:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "DOUBLON - texte différent à ignorer."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::T2:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_T2_ACTIVE"
+        },
+        "Version": {
+         "value": 1
+        }
+       },
+       {
+        "ValidityPeriod": [
+         {
+          "StartTime": "2026-09-03T04:00:00Z",
+          "EndTime": "2026-09-03T20:00:00Z"
+         }
+        ],
+        "MiscellaneousReason": "UNKNOWN",
+        "ReportType": "incident",
+        "Keywords": [
+         "Perturbation"
+        ],
+        "Description": [
+         {
+          "value": "Déviation ligne C12."
+         }
+        ],
+        "Consequences": {
+         "Consequence": [
+          {
+           "Affects": {
+            "Networks": {
+             "AffectedNetwork": [
+              {
+               "NetworkRef": {
+                "value": "ActIV:Operator::RATPML:SYTRAL"
+               },
+               "AffectedLine": [
+                {
+                 "LineRef": {
+                  "value": "ActIV:Line::C12:SYTRAL"
+                 }
+                }
+               ]
+              }
+             ]
+            },
+            "StopPoints": {}
+           }
+          }
+         ]
+        },
+        "CreationTime": "2026-09-03T03:00:00Z",
+        "ParticipantRef": {
+         "value": "TCL"
+        },
+        "SituationNumber": {
+         "value": "SYNTH_BUS_UNFOLLOWED"
+        },
+        "Version": {
+         "value": 1
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}
