@@ -805,6 +805,22 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   `test_tcl_sx_client.py` (auth, 401, timeout, corps vide),
   `tests/integration/test_tcl_sx_live.py` (`@pytest.mark.network`).
 
+## Delta phase 12 — provider météo Open-Meteo (Task 5)
+
+- `providers/weather/schemas.py` : `ForecastFeed` (`current.temperature_2m`,
+  `hourly.time/precipitation_probability/precipitation`), `extra="ignore"`,
+  probas nullables tolérées.
+- `providers/weather/mapper.py` : `to_weather_snapshot(feed, config, now, tz)` —
+  température actuelle + `reported_at` tz-aware ; `rain_at` = première heure dans
+  `[heure courante, now + lookahead_hours]` avec `proba >= seuil` **et**
+  `precip > 0`.
+- `providers/weather/client.py` : `WeatherClient` (sans secret), requête minimale
+  `/v1/forecast` (`current=temperature_2m`, `hourly=precipitation_probability,
+  precipitation`, `timezone=Europe/Paris`, `forecast_days=2`).
+- Tests mapper (pas de pluie, pluie proche, sous le seuil, proba forte sans
+  précipitation, tz-aware, payload malformé), client (params, erreur HTTP),
+  live `@pytest.mark.network`.
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`
