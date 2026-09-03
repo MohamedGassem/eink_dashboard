@@ -44,7 +44,7 @@ Les flashs suivants passent par OTA (pas de deep sleep → toujours joignable).
    avec le `content_hash` courant (lu sur `http://<backend>:8000/api/v1/display/meta`).
    L'écran doit se dessiner.
 
-## Vérifications matérielles (checklist complète : `docs/2026-09-03-test-matériel-checklist.md`)
+## Vérifications matérielles (checklist complète : `docs/2026-09-03-test-materiel-checklist.md`)
 
 - orientation, noir/blanc non inversé, pas de crop, plein cadre 800x480 ;
 - `esphome logs` : pas de reboot / watchdog sur 20+ téléchargements ;

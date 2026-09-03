@@ -253,7 +253,7 @@ repo/
 │
 └── docs/
     ├── 2026-09-03-…-implementation-plan.md    # ce fichier
-    └── 2026-09-03-test-matériel-checklist.md  # nouveau : à suivre pendant le test
+    └── 2026-09-03-test-materiel-checklist.md  # nouveau : à suivre pendant le test
 ```
 
 ---
@@ -315,6 +315,8 @@ repo/
 2. `GET /api/v1/display/meta` → `{ "content_hash": view.content_hash(), "refresh_seconds": refresh_rate_for(now) }`.
 3. `GET /image/dashboard.bmp` → `Response(bmp, media_type="image/bmp", headers={ETag, Cache-Control})` ;
    si `If-None-Match` == `"<hash>"` → `Response(status_code=304, headers=...)`.
+4. `GET /image/dashboard.png` → même chose en PNG 1 bit (fallback `online_image`,
+   voir §9). Même `ETag`, même cache partagé.
 
 Pas de nouvelle logique métier : `refresh_rate_for` et `content_hash()` existent déjà.
 
@@ -370,9 +372,10 @@ Pas de nouvelle logique métier : `refresh_rate_for` et `content_hash()` existen
 **`secrets.example.yaml`** : `wifi_ssid`, `wifi_password`, `api_encryption_key`,
 `ota_password`, `dashboard_image_url` (`http://<IP_BACKEND>:8000/image/dashboard.bmp`).
 
-**Note fallback** (dans le README) : si le BMP 1 bit ne décode pas proprement sur
-l'ESP32-C3, exposer aussi `/image/dashboard.png` côté backend et passer
-`format: PNG` — `online_image` supporte les deux, PNG est le chemin le plus éprouvé.
+**Note fallback** (dans le README) : `/image/dashboard.png` est déjà exposé
+(Task 1). Si le BMP 1 bit ne décode pas proprement sur l'ESP32-C3, il suffit de
+pointer `dashboard_image_url` sur le `.png` et de passer `format: PNG` — aucune
+modif backend.
 
 **Validation locale (avant flash) :** `esphome config firmware/xiao-epaper.yaml`
 (nécessite ESPHome installé ; à défaut, revue manuelle + validation le jour du test).
@@ -452,7 +455,7 @@ de service, tester `script.eink_dashboard_force_refresh`.
 
 **Files**
 
-- Create: `docs/2026-09-03-test-matériel-checklist.md`
+- Create: `docs/2026-09-03-test-materiel-checklist.md`
 
 Checklist ordonnée à suivre le jour du test (backend lancé, ESP à portée) :
 

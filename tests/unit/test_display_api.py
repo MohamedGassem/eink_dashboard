@@ -156,3 +156,28 @@ def test_bmp_route_wins_over_the_trmnl_image_route() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/bmp"
+
+
+# --- /image/dashboard.png (fallback online_image) -------------------------
+
+
+def test_png_is_served_as_a_1bit_800x480_bitmap_with_the_same_etag() -> None:
+    client = build_client()
+    response = client.get("/image/dashboard.png")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+    image = Image.open(BytesIO(response.content))
+    assert image.mode == "1"
+    assert image.size == (800, 480)
+
+    bmp_etag = client.get("/image/dashboard.bmp").headers["etag"]
+    assert response.headers["etag"] == bmp_etag
+
+
+def test_png_supports_conditional_requests() -> None:
+    client = build_client()
+    etag = client.get("/image/dashboard.png").headers["etag"]
+
+    assert client.get("/image/dashboard.png", headers={"If-None-Match": etag}).status_code == 304
