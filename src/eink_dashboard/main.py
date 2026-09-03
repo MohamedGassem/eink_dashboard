@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from eink_dashboard.api.routes import dashboard as dashboard_routes
 from eink_dashboard.api.routes import device as device_routes
+from eink_dashboard.api.routes import display as display_routes
 from eink_dashboard.api.routes import health
 from eink_dashboard.core.config import (
     get_settings,
@@ -104,4 +105,7 @@ configure_logging()
 app = FastAPI(title="eink-dashboard", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(dashboard_routes.router)
+# display.router porte la route littérale /image/dashboard.bmp : il doit être
+# monté avant device.router dont /image/{name} l'absorberait sinon.
+app.include_router(display_routes.router)
 app.include_router(device_routes.router)
