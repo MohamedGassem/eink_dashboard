@@ -2,6 +2,7 @@ from datetime import datetime
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -14,7 +15,22 @@ from eink_dashboard.state import Store
 
 MAC = "AA:BB:CC:DD:EE:FF"
 KEY = "cle-de-test"
-NOW = datetime.now(ZoneInfo("Europe/Paris"))
+# Horloge figée en pleine pointe du matin : hors fenêtre « coarse » (09:00-21:00)
+# et hors fenêtre nuit (21:00-07:30), le hash réagit à chaque valeur affichée.
+# Sans ça les tests d'ETag dépendraient de l'heure réelle d'exécution.
+NOW = datetime(2026, 9, 2, 8, 0, tzinfo=ZoneInfo("Europe/Paris"))
+
+
+class _FixedClock(datetime):
+    @classmethod
+    def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
+        return NOW.astimezone(tz) if tz is not None else NOW.replace(tzinfo=None)
+
+
+@pytest.fixture(autouse=True)
+def _freeze_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(display, "datetime", _FixedClock)
+    monkeypatch.setattr(device, "datetime", _FixedClock)
 
 
 def build_client(store: Store | None = None, config: DashboardConfig | None = None) -> TestClient:

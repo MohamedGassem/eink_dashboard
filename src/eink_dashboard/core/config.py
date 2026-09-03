@@ -28,6 +28,9 @@ class TclStop(BaseModel):
     stop_id: str = Field(min_length=1)
     lines: list[str] = Field(min_length=1, max_length=MAX_LINES_PER_STOP)
     directions: list[str] = Field(default_factory=list, max_length=MAX_DIRECTIONS_PER_STOP)
+    # Libellé de sens affiché pour cet arrêt. Sinon : alias de direction, sinon
+    # destination du prochain passage. Un arrêt = un sens, donc une ligne à l'écran.
+    label: str | None = Field(default=None, min_length=1)
 
     @field_validator("lines")
     @classmethod

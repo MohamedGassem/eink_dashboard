@@ -17,6 +17,11 @@ MAX_ALERTS = 2
 # donc n'entraîne plus de redessin e-ink. L'horodatage affiché se fige alors.
 DAY_COARSE_START_MINUTE = 9 * 60
 DAY_COARSE_END_MINUTE = 21 * 60
+# La nuit (21:00 à 07:30 locale) le panneau est totalement figé : le hash ne
+# dépend plus que de ce créneau, donc plus aucun redessin e-ink — pas même sur
+# perturbation. Bornes alignées sur ``refresh_rate_for`` (services/dashboard).
+NIGHT_START_MINUTE = 21 * 60
+NIGHT_END_MINUTE = 7 * 60 + 30
 LOW_BIKES_THRESHOLD = 3
 # Garde-fou caractères ; la largeur pixel réelle reste gérée par le layout.
 ALERT_TEXT_LIMIT = 110
@@ -32,6 +37,12 @@ def in_coarse_window(now: datetime) -> bool:
     """Vrai entre 09:00 et 21:00 (heure locale du ``now`` fourni)."""
     minutes = now.hour * 60 + now.minute
     return DAY_COARSE_START_MINUTE <= minutes < DAY_COARSE_END_MINUTE
+
+
+def in_night_window(now: datetime) -> bool:
+    """Vrai de 21:00 à 07:30 (heure locale du ``now`` fourni)."""
+    minutes = now.hour * 60 + now.minute
+    return minutes >= NIGHT_START_MINUTE or minutes < NIGHT_END_MINUTE
 
 
 def format_wait(minutes: int) -> str:
@@ -83,8 +94,12 @@ class DashboardView:
     traffic_note: str
     # De 09:00 à 21:00 : hash « grossier », ne réagit qu'aux évènements (cf. constantes).
     coarse: bool = False
+    # De 21:00 à 07:30 : hash figé, ne réagit plus à rien (implique ``coarse``).
+    night: bool = False
 
     def _hash_payload(self) -> dict[str, object]:
+        if self.night:
+            return {"night": True}
         if self.coarse:
             return {
                 "coarse": True,
@@ -113,19 +128,27 @@ class DashboardView:
 def _departures(
     state: DashboardState, now: datetime, config: DashboardConfig
 ) -> tuple[DepartureRow, ...]:
+    # Un arrêt suivi = un sens : on regroupe par (arrêt, ligne), pas par direction.
+    # Les terminus intermédiaires (Hauts de Feuilly, Essarts-Iris…) se fondent
+    # ainsi dans la ligne de leur arrêt au lieu d'ajouter des lignes à l'écran.
+    label_by_stop = {stop.name: stop.label for stop in config.tcl_stops if stop.label}
     grouped: dict[tuple[str, str], list[str]] = {}
+    first_direction: dict[tuple[str, str], str] = {}
     order: list[tuple[str, str]] = []
     for board in state.tcl.data or ():
         for departure in board.departures:
-            key = (departure.line, config.alias_for(departure.direction))
+            key = (board.stop_name, departure.line)
             if key not in grouped:
                 grouped[key] = []
+                first_direction[key] = departure.direction
                 order.append(key)
             grouped[key].append(format_wait(departure.minutes_until(now)))
 
     rows: list[DepartureRow] = []
-    for line, direction in order:
-        waits = grouped[(line, direction)]
+    for stop_name, line in order:
+        key = (stop_name, line)
+        waits = grouped[key]
+        direction = label_by_stop.get(stop_name) or config.alias_for(first_direction[key])
         rows.append(
             DepartureRow(
                 line=line,
@@ -204,6 +227,7 @@ def build_view(
         alerts = _alerts(state.tcl_disruptions.data or (), now)
         traffic_note = ""
 
+    night = coarse_enabled and in_night_window(now)
     return DashboardView(
         as_of=f"{now:%H:%M}",
         departures=_departures(state, now, config),
@@ -211,5 +235,6 @@ def build_view(
         alerts=alerts,
         weather=_weather(state, enabled=weather_enabled, stale=weather_stale),
         traffic_note=traffic_note,
-        coarse=coarse_enabled and in_coarse_window(now),
+        coarse=night or (coarse_enabled and in_coarse_window(now)),
+        night=night,
     )

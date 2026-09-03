@@ -5,6 +5,7 @@ from eink_dashboard.core.config import (
     DirectionAlias,
     DisruptionLine,
     DisruptionsConfig,
+    TclStop,
     WeatherConfig,
 )
 from eink_dashboard.domain.bikes import BikeStation
@@ -139,6 +140,59 @@ def test_one_row_per_line_and_aliased_direction_without_stop_title() -> None:
 
 def test_no_departure_row_when_source_is_empty() -> None:
     assert view_of(Store().state).departures == ()
+
+
+def test_one_row_per_stop_folds_intermediate_termini() -> None:
+    store = Store()
+    store.record_success(
+        "tcl",
+        (
+            StopBoard(
+                stop_name="Route de Vienne (vers St-Priest)",
+                departures=(
+                    Departure("T2", "Saint-Priest Bel Air", T0 + timedelta(minutes=3), True),
+                    Departure("T2", "Hauts de Feuilly", T0 + timedelta(minutes=10), True),
+                    Departure("T2", "Essarts - Iris", T0 + timedelta(minutes=17), True),
+                ),
+            ),
+        ),
+        T0,
+    )
+
+    view = view_of(store.state)
+
+    assert [(r.line, r.direction) for r in view.departures] == [("T2", "St-Priest")]
+    assert view.departures[0].next_waits == ("10 min", "17 min")
+
+
+def test_departure_direction_uses_the_configured_stop_label() -> None:
+    config = DashboardConfig(
+        tcl_stops=[
+            TclStop(
+                name="Route de Vienne (vers Perrache)",
+                stop_id="32147",
+                lines=["T2"],
+                label="Montrochet",
+            )
+        ]
+    )
+    # Double-encodage UTF-8 tel que renvoyé par l'API grandlyon pour "Hôtel Région".
+    mojibake = "Hôtel Région Montrochet".encode().decode("latin-1")
+    store = Store()
+    store.record_success(
+        "tcl",
+        (
+            StopBoard(
+                stop_name="Route de Vienne (vers Perrache)",
+                departures=(Departure("T2", mojibake, T0 + timedelta(minutes=4), True),),
+            ),
+        ),
+        T0,
+    )
+
+    view = view_of(store.state, config=config)
+
+    assert view.departures[0].direction == "Montrochet"
 
 
 # --- 7.2 Vélo'v --------------------------------------------------------
@@ -305,13 +359,17 @@ DAYTIME = T0.replace(hour=14)
 BEFORE_NINE = T0.replace(hour=8)
 
 
-def _fresh_at_daytime(store: Store) -> Store:
-    """Ré-horodate les fournisseurs à DAYTIME (sinon tout est « stale », 6 h après T0)."""
+def _fresh_at(store: Store, when: datetime) -> Store:
+    """Ré-horodate les fournisseurs à ``when`` (sinon tout est « stale » loin de T0)."""
     for name in ("tcl", "velov", "tcl_disruptions", "weather"):
         result = getattr(store.state, name)
         if result.data is not None:
-            store.record_success(name, result.data, DAYTIME)
+            store.record_success(name, result.data, when)
     return store
+
+
+def _fresh_at_daytime(store: Store) -> Store:
+    return _fresh_at(store, DAYTIME)
 
 
 def _daytime_store(**kwargs: object) -> Store:
@@ -328,6 +386,60 @@ def _calm_bikes() -> tuple[BikeStation, ...]:
 def test_coarse_flag_is_only_set_inside_the_daytime_window() -> None:
     assert view_of(_daytime_store().state, DAYTIME).coarse is True
     assert view_of(store_with().state, BEFORE_NINE).coarse is False
+
+
+# --- 7.7 mode nuit : hash figé de 21:00 à 07:30 ---------------------
+
+NIGHT = T0.replace(hour=23)
+
+
+def test_night_window_sets_both_night_and_coarse() -> None:
+    view = view_of(store_with().state, NIGHT)
+    assert view.night is True
+    assert view.coarse is True
+
+
+def test_peak_window_is_neither_night_nor_coarse() -> None:
+    view = view_of(store_with().state, BEFORE_NINE)
+    assert view.night is False
+    assert view.coarse is False
+
+
+def _night_store(offset: int) -> Store:
+    store = Store()
+    store.record_success(
+        "tcl",
+        (
+            StopBoard(
+                stop_name="Route de Vienne (vers St-Priest)",
+                departures=(
+                    Departure(
+                        "T2", "Saint-Priest Bel Air", NIGHT + timedelta(minutes=offset), True
+                    ),
+                ),
+            ),
+        ),
+        NIGHT,
+    )
+    return store
+
+
+def test_night_hash_ignores_departure_countdowns() -> None:
+    base = view_of(_night_store(offset=3).state, NIGHT)
+    later = view_of(_night_store(offset=12).state, NIGHT)
+    assert base.content_hash() == later.content_hash()
+
+
+def test_night_hash_does_not_react_to_a_new_disruption() -> None:
+    active = _disruption(
+        "A",
+        ("T2",),
+        valid_from=NIGHT - timedelta(hours=1),
+        valid_until=NIGHT + timedelta(hours=2),
+    )
+    base = view_of(_fresh_at(store_with(), NIGHT).state, NIGHT)
+    alert = view_of(_fresh_at(store_with(disruptions=(active,)), NIGHT).state, NIGHT)
+    assert base.content_hash() == alert.content_hash()
 
 
 def test_daytime_hash_ignores_departure_countdowns() -> None:

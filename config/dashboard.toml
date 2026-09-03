@@ -1,17 +1,22 @@
 # Points d'arrêt vérifiés via tcl_sytral.tclarret (Bellecour le 2026-09-02,
 # Route de Vienne le 2026-09-03). Le choix des arrêts suivis revient à l'utilisateur.
 
+# Un arrêt = un sens = une ligne à l'écran. `label` fixe le libellé de sens
+# affiché ; les terminus partiels (Hauts de Feuilly, Essarts-Iris, …) sont
+# regroupés dans la ligne de leur arrêt au lieu d'ajouter des lignes.
 [[tcl.stops]]
 name = "Route de Vienne (vers St-Priest)"
 stop_id = "32146"
 lines = ["T2"]
 directions = []
+label = "St-Priest"
 
 [[tcl.stops]]
 name = "Route de Vienne (vers Perrache)"
 stop_id = "32147"
 lines = ["T2"]
 directions = []
+label = "Montrochet"
 
 # Libellés de destination bruts de l'API -> labels courts affichés.
 [[tcl.direction_aliases]]

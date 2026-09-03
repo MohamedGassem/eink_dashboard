@@ -673,3 +673,32 @@ Non fait volontairement : mesure de batterie affichée sur le panneau (le pannea
 Seeed n'expose pas de pont diviseur documenté ; sans intérêt tant qu'on est sur
 secteur). Une icône « batterie faible » pourra être ajoutée côté Pillow quand le
 mode batterie sera actif, hors hash.
+
+---
+
+## 21. Delta 2026-09-03c — nuit figée + une ligne T2 par sens
+
+**Backend (livré, testé — `pytest`/`mypy`/`ruff` verts) :**
+
+- `in_night_window(now)` (21:00–07:30 locale, bornes de `refresh_rate_for`).
+  `DashboardView.night` → `content_hash()` renvoie un payload constant
+  `{"night": true}` : la nuit le panneau ne se redessine plus **du tout**, pas
+  même sur perturbation ou Vélo'v bas (contrairement au mode `coarse` de jour).
+  `night` implique `coarse` (en-tête « MAJ HH:MM »). Gated par `coarse_enabled`,
+  donc TRMNL (`device.py`) reste pleine fidélité.
+  Motivation : en mode batterie l'ESP se réveille ~toutes les 4 h la nuit ;
+  sans gel le hash bougeait à chaque réveil (comptes à rebours) → download BMP +
+  redessin inutiles. Désormais : 1 redraw en entrant dans la nuit, 1 à 07:30.
+- `_departures` regroupe par `(arrêt, ligne)` au lieu de `(ligne, direction)`.
+  Un arrêt suivi = un sens → 2 lignes T2 garanties. Les terminus partiels (Hauts
+  de Feuilly, Essarts-Iris, Montrochet vs Perrache) se fondent dans la ligne de
+  leur arrêt au lieu d'empiler 3-4 lignes qui débordaient sur la zone VÉLO'V.
+- `TclStop.label` (optionnel) : libellé de sens affiché. Sinon alias de
+  direction, sinon destination du prochain passage. `config/dashboard.toml` fixe
+  `label = "St-Priest"` / `label = "Montrochet"`. Effet de bord : contourne le
+  mojibake `HÃ´tel RÃ©gion` de l'API grandlyon (le libellé ne vient plus du flux
+  brut).
+
+Non fait : `NIGHT_MAX_SLEEP` reste à 4 h (le gel du hash suffit ; passer à 6 h
+n'économise qu'un réveil Wi-Fi/nuit contre une latence OTA doublée). Point 3
+(mesure batterie, sonde ADC GPIO0/GPIO1) non démarré.

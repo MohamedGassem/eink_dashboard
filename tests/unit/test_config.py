@@ -28,6 +28,20 @@ def test_load_dashboard_config_reads_stops_and_stations() -> None:
     assert [station.station_id for station in config.velov_stations] == ["1032", "1024"]
 
 
+def test_load_dashboard_config_reads_the_optional_stop_label(tmp_path: Path) -> None:
+    toml = tmp_path / "d.toml"
+    toml.write_text(
+        '[[tcl.stops]]\nname = "A"\nstop_id = "1"\nlines = ["T2"]\nlabel = "St-Priest"\n'
+        '[[tcl.stops]]\nname = "B"\nstop_id = "2"\nlines = ["T2"]\n',
+        encoding="utf-8",
+    )
+
+    config = load_dashboard_config(toml)
+
+    assert config.tcl_stops[0].label == "St-Priest"
+    assert config.tcl_stops[1].label is None
+
+
 def test_load_dashboard_config_reads_v2_sections() -> None:
     config = load_dashboard_config(FIXTURES / "dashboard_ok.toml")
 
