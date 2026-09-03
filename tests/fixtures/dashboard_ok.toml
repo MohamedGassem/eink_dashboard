@@ -10,6 +10,26 @@ stop_id = "5678"
 lines = ["B"]
 directions = []
 
+[[tcl.direction_aliases]]
+match = "Saint-Priest"
+label = "St-Priest"
+
+[[tcl.direction_aliases]]
+match = "Hôtel de Région"
+label = "Perrache"
+
+[tcl.disruptions]
+lines = ["T2", "D"]
+future_window_hours = 2
+
+[[tcl.disruptions.line_refs]]
+label = "T2"
+refs = ["ActIV:Line::T2:SYTRAL"]
+
+[[tcl.disruptions.line_refs]]
+label = "D"
+refs = ["ActIV:Line::D:SYTRAL"]
+
 [[velov.stations]]
 station_id = "1032"
 label = "Pizay"
@@ -17,3 +37,9 @@ label = "Pizay"
 [[velov.stations]]
 station_id = "1024"
 label = "Rouville"
+
+[weather]
+latitude = 45.75
+longitude = 4.85
+lookahead_hours = 6
+rain_probability_threshold = 50

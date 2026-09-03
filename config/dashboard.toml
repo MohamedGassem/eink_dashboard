@@ -1,22 +1,53 @@
-# Points d'arrêt vérifiés le 2026-09-02 via tcl_sytral.tclarret.
-# Le choix définitif des arrêts suivis revient à l'utilisateur.
+# Points d'arrêt vérifiés via tcl_sytral.tclarret (Bellecour le 2026-09-02,
+# Route de Vienne le 2026-09-03). Le choix des arrêts suivis revient à l'utilisateur.
 
 [[tcl.stops]]
-name = "Bellecour A"
-stop_id = "30103"
-lines = ["A"]
+name = "Route de Vienne (vers St-Priest)"
+stop_id = "32146"
+lines = ["T2"]
 directions = []
 
 [[tcl.stops]]
-name = "Bellecour D"
-stop_id = "30201"
-lines = ["D"]
+name = "Route de Vienne (vers Perrache)"
+stop_id = "32147"
+lines = ["T2"]
 directions = []
 
-[[velov.stations]]
-station_id = "1032"
-label = "Pizay"
+# Libellés de destination bruts de l'API -> labels courts affichés.
+[[tcl.direction_aliases]]
+match = "Saint-Priest"
+label = "St-Priest"
+
+[[tcl.direction_aliases]]
+match = "Perrache"
+label = "Perrache"
+
+# Perturbations TCL suivies (SIRI Situation Exchange). Les LineRef proviennent
+# d'une capture réelle : D = "ActIV:Line::D:SYTRAL" (confirmé le 2026-09-03) ;
+# T2 suit la convention observée pour T4/T7. Voir docs/tcl-sx-api-notes.md.
+[tcl.disruptions]
+lines = ["T2", "D"]
+future_window_hours = 2
+
+[[tcl.disruptions.line_refs]]
+label = "T2"
+refs = ["ActIV:Line::T2:SYTRAL"]
+
+[[tcl.disruptions.line_refs]]
+label = "D"
+refs = ["ActIV:Line::D:SYTRAL"]
 
 [[velov.stations]]
-station_id = "1024"
-label = "Rouville"
+station_id = "7052"
+label = "Parc Blandan"
+
+[[velov.stations]]
+station_id = "7023"
+label = "Berthelot / Route de Vienne"
+
+# Coordonnées proches des arrêts suivis (Parc Blandan / Route de Vienne).
+[weather]
+latitude = 45.749
+longitude = 4.855
+lookahead_hours = 6
+rain_probability_threshold = 50
