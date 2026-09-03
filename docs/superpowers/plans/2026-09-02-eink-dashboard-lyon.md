@@ -3283,7 +3283,7 @@ curl -s -H "ID: $DEVICE_MAC" -H "Access-Token: $DEVICE_API_KEY" http://localhost
 
 Expected: si aucun temps d'attente n'a changé entre les deux appels, `filename` est identique. Observer ensuite le panneau réel pendant une demi-heure de nuit : il ne doit pas redessiner tant que les données ne bougent pas. Si le panneau redessine malgré un `filename` identique, c'est que le firmware ne compare pas ce champ ; noter le constat dans `docs/tcl-api-notes.md` et laisser le mécanisme en place, il reste correct et sans coût.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
