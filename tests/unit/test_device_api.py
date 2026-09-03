@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from eink_dashboard.api.routes import device
-from eink_dashboard.core.config import Settings
+from eink_dashboard.core.config import DashboardConfig, Settings
 from eink_dashboard.render.images import ImageCache
 from eink_dashboard.state import Store
 
@@ -16,6 +16,7 @@ def build_client() -> TestClient:
     app = FastAPI()
     app.include_router(device.router)
     app.state.store = Store()
+    app.state.config = DashboardConfig()
     app.state.images = ImageCache()
     app.state.tz = ZoneInfo("Europe/Paris")
     app.state.settings = Settings(

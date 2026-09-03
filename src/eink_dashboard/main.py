@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     store = Store()
     http = httpx.AsyncClient(timeout=TIMEOUT)
     app.state.settings = settings
+    app.state.config = config
     app.state.store = store
     app.state.tz = tz
     app.state.images = ImageCache()

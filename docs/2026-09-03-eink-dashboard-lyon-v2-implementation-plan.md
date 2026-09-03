@@ -833,6 +833,25 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   instanciés). Perturbations suivies sans `LineRef` → `validate_runtime_requirements`
   lève au démarrage (pas de faux « trafic normal »).
 
+## Delta phase 14 — ViewModel V2 (Task 7)
+
+- `render/viewmodel.py` réécrit : `DepartureRow` (ligne/direction aliasée,
+  `first_wait` + 3 suivants max, pas de titre d'arrêt), `BikeRow` (label, nombre
+  de vélos, `stale` — plus de `docks`/`capacity`), `AlertRow`, `WeatherRow`,
+  `DashboardView(as_of, departures, bikes, alerts, weather, traffic_note)`.
+- `content_hash()` couvre départs + vélos + alertes + météo + `traffic_note`,
+  exclut `as_of`. Un changement de `docks` seul ne bouge plus le hash.
+- Alertes : actives uniquement, une par jeu de lignes (plus ancienne `source_id`),
+  max 2, `T2/D` fusionné, texte tronqué à 110 car. `provider ok + 0` →
+  `alerts=()`, `traffic_note=""` ; `provider stale/error` → `traffic_note="Info
+  trafic indisponible"` ; provider non configuré → jamais de note.
+- Météo : température arrondie, `Pluie vers HHh` / `Sec`, stale/error →
+  `Météo indisponible`, non configurée → `weather=None`.
+- `build_view` prend désormais la `DashboardConfig` (aliases + activation).
+  `app.state.config` + `ConfigDep` ; helper `services.dashboard.view_for`.
+  `render/layout.py` adapté aux nouveaux types (le redécoupage en zones fixes
+  et les fixtures d'états dégradés sont la phase 15).
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`

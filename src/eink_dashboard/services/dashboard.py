@@ -2,11 +2,29 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 
-from eink_dashboard.state import DashboardState, ProviderResult
+from eink_dashboard.core.config import DashboardConfig, Settings
+from eink_dashboard.render.viewmodel import DashboardView, build_view
+from eink_dashboard.state import DashboardState, ProviderResult, Store
 
 # La spec §8 bascule un fournisseur en ``stale`` au-delà de trois fois son
 # intervalle de rafraîchissement. Chaque fournisseur porte le sien.
 STALE_INTERVAL_FACTOR = 3
+
+
+def view_for(
+    store: Store, config: DashboardConfig, settings: Settings, now: datetime
+) -> DashboardView:
+    return build_view(
+        store.state,
+        now,
+        config,
+        tcl_stale_after_seconds=settings.tcl_refresh_seconds * STALE_INTERVAL_FACTOR,
+        velov_stale_after_seconds=settings.velov_refresh_seconds * STALE_INTERVAL_FACTOR,
+        tcl_disruptions_stale_after_seconds=(
+            settings.tcl_disruptions_refresh_seconds * STALE_INTERVAL_FACTOR
+        ),
+        weather_stale_after_seconds=settings.weather_refresh_seconds * STALE_INTERVAL_FACTOR,
+    )
 
 
 def _iso(value: datetime | None) -> str | None:

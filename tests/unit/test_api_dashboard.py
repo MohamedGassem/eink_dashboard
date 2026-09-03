@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from eink_dashboard.api.routes import dashboard, health
-from eink_dashboard.core.config import Settings
+from eink_dashboard.core.config import DashboardConfig, Settings
 from eink_dashboard.domain.bikes import BikeStation
 from eink_dashboard.domain.disruptions import TransitDisruption
 from eink_dashboard.domain.transit import Departure, StopBoard
@@ -21,6 +21,7 @@ def build_client(store: Store) -> TestClient:
     app.include_router(dashboard.router)
     app.state.store = store
     app.state.settings = Settings(_env_file=None)
+    app.state.config = DashboardConfig()
     app.state.tz = ZoneInfo("Europe/Paris")
     return TestClient(app)
 
