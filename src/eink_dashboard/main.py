@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI
 
 from eink_dashboard.api.routes import dashboard as dashboard_routes
+from eink_dashboard.api.routes import device as device_routes
 from eink_dashboard.api.routes import health
 from eink_dashboard.core.config import (
     get_settings,
@@ -19,14 +20,15 @@ from eink_dashboard.core.logging import configure_logging
 from eink_dashboard.providers.base import Provider
 from eink_dashboard.providers.tcl.client import TclClient
 from eink_dashboard.providers.velov.client import VelovClient
+from eink_dashboard.render.images import ImageCache
 from eink_dashboard.scheduler import run_provider_loop
 from eink_dashboard.state import Store
 
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
-# L'API appareil (Task 12) n'est pas encore câblée : ses identifiants ne sont
-# pas exigés au démarrage.
-DEVICE_API_ENABLED = False
+# L'API appareil (Task 12) est câblée : DEVICE_MAC et DEVICE_API_KEY sont exigés
+# au démarrage.
+DEVICE_API_ENABLED = True
 
 
 @asynccontextmanager
@@ -42,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings = settings
     app.state.store = store
     app.state.tz = tz
+    app.state.images = ImageCache()
 
     providers: list[Provider[Any]] = []
     if config.velov_stations:
@@ -78,3 +81,4 @@ configure_logging()
 app = FastAPI(title="eink-dashboard", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(dashboard_routes.router)
+app.include_router(device_routes.router)

@@ -4,12 +4,18 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from eink_dashboard.core.config import Settings
+from eink_dashboard.render.images import ImageCache
 from eink_dashboard.state import Store
 
 
 def get_store(request: Request) -> Store:
     store: Store = request.app.state.store
     return store
+
+
+def get_images(request: Request) -> ImageCache:
+    images: ImageCache = request.app.state.images
+    return images
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -25,3 +31,4 @@ def get_tz(request: Request) -> tzinfo:
 StoreDep = Annotated[Store, Depends(get_store)]
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 TzDep = Annotated[tzinfo, Depends(get_tz)]
+ImagesDep = Annotated[ImageCache, Depends(get_images)]
