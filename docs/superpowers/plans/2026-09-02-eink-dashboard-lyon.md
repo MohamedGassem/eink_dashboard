@@ -3164,7 +3164,7 @@ git commit -m "feat: endpoints du protocole appareil TRMNL et service des images
 - Consumes: `datetime`.
 - Produces: `refresh_rate_for(now: datetime) -> int` dans `services/dashboard.py`, avec les constantes `PEAK_REFRESH = 120`, `DAY_REFRESH = 300`, `NIGHT_REFRESH = 3600`.
 
-- [ ] **Step 1: Écrire les tests qui échouent**
+- [x] **Step 1: Écrire les tests qui échouent**
 
 `tests/unit/test_refresh_rate.py` :
 
@@ -3207,12 +3207,12 @@ def test_six_in_the_morning_is_daytime() -> None:
     assert refresh_rate_for(at(6, 0)) == DAY_REFRESH
 ```
 
-- [ ] **Step 2: Lancer les tests et vérifier qu'ils échouent**
+- [x] **Step 2: Lancer les tests et vérifier qu'ils échouent**
 
 Run: `pytest tests/unit/test_refresh_rate.py -v`
 Expected: FAIL avec `ImportError: cannot import name 'refresh_rate_for'`
 
-- [ ] **Step 3: Écrire la fonction**
+- [x] **Step 3: Écrire la fonction**
 
 Ajouter à la fin de `src/eink_dashboard/services/dashboard.py` :
 
@@ -3237,7 +3237,7 @@ def refresh_rate_for(now: datetime) -> int:
     return DAY_REFRESH
 ```
 
-- [ ] **Step 4: Brancher la fonction sur `/api/display`**
+- [x] **Step 4: Brancher la fonction sur `/api/display`**
 
 Dans `src/eink_dashboard/api/routes/device.py`, remplacer l'import et la constante :
 
@@ -3251,7 +3251,7 @@ Supprimer `DEFAULT_REFRESH_SECONDS` et remplacer la ligne du dictionnaire de ré
         "refresh_rate": refresh_rate_for(now),
 ```
 
-- [ ] **Step 5: Ajouter le test d'intégration de la cadence**
+- [x] **Step 5: Ajouter le test d'intégration de la cadence**
 
 Ajouter à `tests/unit/test_device_api.py` :
 
@@ -3266,7 +3266,7 @@ def test_display_refresh_rate_matches_the_schedule() -> None:
     assert body["refresh_rate"] in {PEAK_REFRESH, DAY_REFRESH, NIGHT_REFRESH}
 ```
 
-- [ ] **Step 6: Lancer toute la suite**
+- [x] **Step 6: Lancer toute la suite**
 
 Run: `pytest -v && mypy && ruff check . && ruff format --check .`
 Expected: PASS, aucune erreur
@@ -3634,3 +3634,38 @@ deltas précédents :
   du champ `status`) + rendu à taille réelle sur la dalle — non faite, nécessite
   le matériel (Task 12 Step 6).
 - Cadence adaptative (`refresh_rate` dynamique, heures creuses) — Task 13.
+
+---
+
+## Delta phase 8 — Cadence adaptative (Task 13), exécuté le 2026-09-03
+
+Livré sur `feat/p8-cadence-adaptative`. 125 tests (2 réseau désélectionnés),
+`mypy --strict` et `ruff` propres. Conforme au texte de la Task 13, aux détails
+de câblage près :
+
+### Task 13 — `services/dashboard.py`
+
+- `refresh_rate_for` et les constantes `PEAK_REFRESH = 120` / `DAY_REFRESH = 300`
+  / `NIGHT_REFRESH = 3600` ajoutés en fin de module, exactement comme l'étape 3.
+  Pointe 07:00–09:30 et 17:00–19:30, nuit 23:00–06:00, journée sinon.
+
+### Task 13 — `api/routes/device.py`
+
+- `DEFAULT_REFRESH_SECONDS` supprimée. `display` calcule `datetime.now(tz)` et
+  renvoie `"refresh_rate": refresh_rate_for(now)`. `_current_image` garde son
+  propre `now` (le hash d'image ne dépend pas de la cadence).
+- `FRIENDLY_ID` inchangé.
+
+### Task 13 — tests
+
+- `tests/unit/test_refresh_rate.py` : tests de l'étape 1 tels quels.
+- `tests/unit/test_device_api.py` : ajout de
+  `test_display_refresh_rate_matches_the_schedule`.
+- Steps 7 (validation anti-clignotement sur la dalle) non exécuté : nécessite le
+  matériel, comme les autres validations Docker/firmware laissées ouvertes.
+
+### Reste ouvert après phase 8
+
+- Sélection définitive des arrêts/stations dans `config/dashboard.toml`.
+- Validation Docker + contrat firmware TRMNL + rendu à taille réelle + contrôle
+  anti-clignotement sur la dalle — nécessite le matériel.

@@ -63,6 +63,14 @@ def test_display_returns_an_image_url_and_a_refresh_rate() -> None:
     assert body["update_firmware"] is False
 
 
+def test_display_refresh_rate_matches_the_schedule() -> None:
+    from eink_dashboard.services.dashboard import DAY_REFRESH, NIGHT_REFRESH, PEAK_REFRESH
+
+    body = build_client().get("/api/display", headers={"ID": MAC, "Access-Token": KEY}).json()
+
+    assert body["refresh_rate"] in {PEAK_REFRESH, DAY_REFRESH, NIGHT_REFRESH}
+
+
 def test_display_rejects_a_bad_token() -> None:
     response = build_client().get(
         "/api/display", headers={"ID": MAC, "Access-Token": "mauvaise-cle"}
