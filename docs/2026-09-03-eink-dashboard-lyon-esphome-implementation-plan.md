@@ -26,16 +26,22 @@ toute cette logique hors de l'ESP32 :
 
 | Responsabilité | v1 (ESP autonome) | v2 (HA orchestrateur) |
 |---|---|---|
-| Savoir si l'écran doit changer | `global last_content_hash` sur l'ESP | `input_text` côté HA |
-| Décision de rafraîchir | machine à états en lambda C++ | 1 automation HA |
-| Persistance du hash affiché | `restore_value` + invariant critique | `input_text` HA (durable par nature) |
+| Savoir si l'écran doit changer | `global last_content_hash` sur l'ESP | comparaison de 2 sensors HA |
+| Hash cible (contenu à jour) | GET HTTP depuis l'ESP | `rest` sensor HA sur `/api/v1/display/meta` |
+| Hash réellement affiché | `global` persistée sur l'ESP | `text_sensor` publié par l'ESP après affichage |
+| Décision de rafraîchir | machine à états en lambda C++ | 1 automation HA (2 sensors diffèrent) |
+| Persistance après reboot | `restore_value` + invariant critique | aucune : au boot l'ESP retélécharge et republie |
 | Cadence de réveil | deep sleep piloté par `refresh_seconds` | poll HA fixe (60 s) ; `refresh_seconds` redevient utile en mode batterie |
-| Résistance panne backend | retry au réveil | l'ESP ne touche pas l'écran sans ordre HA ; dernière image conservée |
+| Résistance panne backend | retry au réveil | `rest` sensor `unavailable` → automation inerte ; dernière image conservée |
 | OTA malgré deep sleep | `deep_sleep.prevent` + `input_boolean` | pas de deep sleep → OTA trivial |
 
 **Le firmware v2 ne contient aucune comparaison de hash, aucune `global`
 persistée, aucune machine à états, aucun deep sleep.** Il expose un service
 `refresh` et sait dessiner une image téléchargée. C'est tout.
+
+**Le package HA v2 est minimal : 1 `rest` sensor + 1 automation + 1 script.**
+Pas d'`input_text`, pas d'`input_boolean` : le hash affiché est porté par le
+`text_sensor` de l'ESP lui-même, seule source de vérité de ce qui est à l'écran.
 
 Tâches de la v1 **supprimées ou vidées** par ce choix : la machine à états
 firmware (v1 Task 5), le durcissement de la persistance après deep sleep
@@ -78,22 +84,22 @@ L'architecture cible doit :
 
                                 │
                                 ▼
-        ┌───────────────  HOME ASSISTANT  ───────────────┐
-        │  rest sensor : poll /api/v1/display/meta (60 s) │
-        │  input_text  : dernier hash réellement affiché  │
-        │  automation  : si meta.hash != input_text       │
-        │                et pas en maintenance            │
-        │                -> esphome.eink_dashboard_refresh │
-        │  automation  : shown_hash (ESP) -> input_text    │
-        └───────────────────────┬────────────────────────┘
-                                │ ESPHome Native API (chiffrée)
-                                ▼
+        ┌────────────────  HOME ASSISTANT  ────────────────┐
+        │  sensor.…_target_hash  : rest, poll meta (60 s)   │
+        │  sensor.…_content_hash : publié par l'ESP         │
+        │  automation : target_hash renseigné ET            │
+        │               target_hash != content_hash (ESP)   │
+        │               -> esphome.eink_dashboard_refresh    │
+        │  script     : force_refresh (debug)               │
+        └────────────────────────┬─────────────────────────┘
+                                 │ ESPHome Native API (chiffrée)
+                                 ▼
                     ┌─────────────────────────┐
                     │ XIAO ESP32-C3 / ESPHome │
                     │  service: refresh(hash) │
                     │   -> online_image.update│
                     │   -> display.update     │
-                    │   -> shown_hash = hash  │
+                    │   -> content_hash = hash│
                     │  diagnostics: RSSI, ... │
                     └───────────┬─────────────┘
                                 ▼
@@ -126,9 +132,10 @@ Wi-Fi, Native API chiffrée, OTA, `online_image` (BMP BINARY), `display`
 
 ### 2.4 Ce qui passe côté Home Assistant
 
-Un package `homeassistant/eink_dashboard.yaml` : 1 `rest` sensor, 1 `input_text`,
-1 `input_boolean` (maintenance, optionnel), 2 automations, 1 script de refresh
-forcé. Fourni prêt à copier ; HA n'est pas requis pour que FastAPI fonctionne.
+Un package `homeassistant/eink_dashboard.yaml` : 1 `rest` sensor (hash cible),
+1 automation (rafraîchir si le hash de l'ESP diffère du hash cible), 1 script de
+refresh forcé (debug). Fourni prêt à copier ; HA n'est pas requis pour que
+FastAPI fonctionne.
 
 ---
 
@@ -174,37 +181,35 @@ FastAPI met à jour DashboardView (providers en tâche de fond)
 HA rest sensor poll /api/v1/display/meta  (toutes les 60 s)
         │
         ▼
-sensor.eink_dashboard_content_hash change de valeur
+sensor.eink_dashboard_target_hash change de valeur
         │
         ▼
 automation « refresh » :
-   condition : hash != input_text.eink_dashboard_shown_hash
-               ET input_boolean.eink_dashboard_maintenance == off
-               ET device ESPHome disponible
+   condition : target_hash renseigné (ni unknown/unavailable/"")
+               ET target_hash != sensor.eink_dashboard_content_hash  (celui de l'ESP)
         │
         ▼
-   service esphome.eink_dashboard_refresh(content_hash = <hash>)
+   service esphome.eink_dashboard_refresh(content_hash = <target_hash>)
         │
         ▼
 ESP : online_image.update
         ├── succès (on_download_finished)
         │      ├── display.update  (rafraîchit l'e-paper)
-        │      └── text_sensor shown_hash = content_hash
+        │      └── text_sensor "Content hash" = <target_hash>
         │                 │
         │                 ▼
-        │      automation « mirror » : input_text = shown_hash
+        │      les 2 sensors HA sont égaux → automation au repos
         │
         └── échec (on_error)
-               ├── shown_hash = "error"
-               └── écran inchangé ; input_text inchangé
-                   → l'automation re-déclenchera au prochain poll (hash toujours != input_text)
+               ├── text_sensor "Content hash" = "error"
+               └── écran inchangé
+                   → target_hash ≠ "error" → l'automation re-déclenche au prochain poll
 ```
 
-**Invariant conservé, mais déplacé côté HA :** `input_text.eink_dashboard_shown_hash`
-n'est mis à jour qu'après un `on_download_finished` réussi qui publie
-`shown_hash`. Un échec de téléchargement laisse `input_text` sur l'ancienne
-valeur → nouvelle tentative au poll suivant. Aucune logique de persistance sur
-l'ESP.
+**Invariant conservé sans code dédié :** le seul état « ce qui est à l'écran »
+est le `text_sensor` que l'ESP publie **après** un `on_download_finished` réussi.
+Un échec le met à `"error"` (≠ hash cible) → nouvelle tentative au poll suivant.
+Aucune persistance ni comparaison sur l'ESP ; aucun helper HA à tenir à jour.
 
 ### Scénarios de panne
 
@@ -212,9 +217,9 @@ l'ESP.
 |---|---|
 | Backend FastAPI down | `rest` sensor `unavailable` → automation ne déclenche pas → dernière image conservée. Reprise auto. |
 | Home Assistant down | l'ESP ne reçoit aucun ordre → dernière image conservée. FastAPI continue de servir. Reprise auto au retour de HA. |
-| Wi-Fi ESP coupé | device ESPHome `unavailable` → condition d'automation fausse → pas d'appel. Au retour, `wifi.on_connect` déclenche un `online_image.update`, puis HA resynchronise. |
-| Image corrompue / téléchargement KO | `on_error` → `shown_hash = "error"` → `input_text` inchangé → retry au poll suivant. Écran inchangé. |
-| Reboot ESP | pas de `global` à restaurer. `wifi.on_connect` → `online_image.update` → l'image courante est re-téléchargée et redessinée une fois. HA resynchronise `input_text`. |
+| Wi-Fi ESP coupé | `sensor.…_content_hash` (ESP) `unavailable` → l'automation ne peut pas confirmer l'égalité mais le service ne part pas tant que l'ESP est injoignable. Au retour, `wifi.on_connect` → `online_image.update` redessine, l'ESP republie, HA resynchronise. |
+| Image corrompue / téléchargement KO | `on_error` → `text_sensor = "error"` → ≠ hash cible → retry au poll suivant. Écran inchangé. |
+| Reboot ESP | pas de `global` à restaurer. `wifi.on_connect` → `online_image.update` → l'image courante est re-téléchargée et redessinée une fois, l'ESP republie son hash. |
 
 ---
 
@@ -384,85 +389,60 @@ l'ESP32-C3, exposer aussi `/image/dashboard.png` côté backend et passer
 - Create: `homeassistant/secrets.example.yaml`
 - Create: `homeassistant/README.md`
 
-**`eink_dashboard.yaml`**
+**`eink_dashboard.yaml`** (contenu réel du fichier livré) :
 
 ```yaml
 rest:
   - resource: !secret eink_dashboard_meta_url
     scan_interval: 60
     sensor:
-      - name: "Eink dashboard content hash"
-        unique_id: eink_dashboard_content_hash
+      - name: "Eink dashboard target hash"
+        unique_id: eink_dashboard_target_hash
         value_template: "{{ value_json.content_hash }}"
-        json_attributes:
-          - refresh_seconds
-
-input_text:
-  eink_dashboard_shown_hash:
-    name: Eink dashboard shown hash
-    max: 32
-
-input_boolean:
-  eink_dashboard_maintenance:
-    name: Eink dashboard maintenance
+        json_attributes: [refresh_seconds]
 
 automation:
-  - alias: "Eink dashboard - refresh on content change"
+  - alias: "Eink dashboard - refresh e-paper on content change"
     trigger:
       - trigger: state
-        entity_id: sensor.eink_dashboard_content_hash
+        entity_id: sensor.eink_dashboard_target_hash
+      - trigger: state
+        entity_id: sensor.eink_dashboard_content_hash   # publié par l'ESP
       - trigger: homeassistant
         event: start
     condition:
       - condition: template
         value_template: >
-          {{ states('sensor.eink_dashboard_content_hash') not in
-             ['unknown', 'unavailable', ''] }}
+          {{ states('sensor.eink_dashboard_target_hash')
+             not in ['unknown', 'unavailable', 'None', ''] }}
       - condition: template
         value_template: >
-          {{ states('sensor.eink_dashboard_content_hash')
-             != states('input_text.eink_dashboard_shown_hash') }}
-      - condition: state
-        entity_id: input_boolean.eink_dashboard_maintenance
-        state: "off"
+          {{ states('sensor.eink_dashboard_target_hash')
+             != states('sensor.eink_dashboard_content_hash') }}
     action:
       - service: esphome.eink_dashboard_refresh
         data:
-          content_hash: "{{ states('sensor.eink_dashboard_content_hash') }}"
-
-  - alias: "Eink dashboard - record displayed hash"
-    trigger:
-      - trigger: state
-        entity_id: text_sensor.eink_dashboard_content_hash   # shown_hash exposé par l'ESP
-    condition:
-      - condition: template
-        value_template: "{{ trigger.to_state.state not in ['error', 'unknown', 'unavailable', ''] }}"
-    action:
-      - service: input_text.set_value
-        target:
-          entity_id: input_text.eink_dashboard_shown_hash
-        data:
-          value: "{{ trigger.to_state.state }}"
+          content_hash: "{{ states('sensor.eink_dashboard_target_hash') }}"
+    mode: single
 
 script:
   eink_dashboard_force_refresh:
-    alias: Eink dashboard - force refresh
+    alias: "Eink dashboard - force refresh"
     sequence:
-      - service: input_text.set_value
-        target:
-          entity_id: input_text.eink_dashboard_shown_hash
+      - service: esphome.eink_dashboard_refresh
         data:
-          value: "forced"
+          content_hash: "{{ states('sensor.eink_dashboard_target_hash') }}"
 ```
 
-> Le nom exact de l'entité `text_sensor` publiée par l'ESP dépend du
-> `friendly_name` / `name`. À ajuster dans le README au moment de l'appairage.
+> `sensor.eink_dashboard_content_hash` = le `text_sensor` « Content hash » de
+> l'ESP (domaine `sensor` côté HA). Si le device n'est pas nommé `eink-dashboard`,
+> ajuster ce nom et celui du service `esphome.<name>_refresh` — voir README.
 
 **`secrets.example.yaml`** : `eink_dashboard_meta_url: http://<IP_BACKEND>:8000/api/v1/display/meta`.
 
 **`README.md`** : activer `packages:` dans `configuration.yaml`, copier le fichier,
-renseigner les secrets, adopter le device ESPHome, retrouver le nom du service
-`esphome.<name>_refresh` et de l'entité `text_sensor`, tester le script de refresh forcé.
+renseigner les secrets, adopter le device ESPHome, vérifier les noms d'entités /
+de service, tester `script.eink_dashboard_force_refresh`.
 
 **Commit :** `feat: add Home Assistant package to orchestrate eink refresh`
 
@@ -482,18 +462,21 @@ Checklist ordonnée à suivre le jour du test (backend lancé, ESP à portée) :
 2. **Flash** : brancher le XIAO en USB, `esphome run firmware/xiao-epaper.yaml`,
    renseigner `firmware/secrets.yaml` d'abord.
 3. **Appairage HA** : le device apparaît → adopter. Noter le nom réel du service
-   `esphome.<name>_refresh` et de l'entité `text_sensor` ; ajuster le package HA.
+   `esphome.<name>_refresh` et de l'entité `sensor.<name>_content_hash` ; ajuster
+   le package HA si `<name>` ≠ `eink_dashboard`.
 4. **Premier affichage** : appeler le service `refresh` à la main
    (Outils de développement → Services) avec le hash courant → l'écran se dessine.
    Vérifier : orientation, noir/blanc non inversé, pas de crop, 800×480 plein cadre.
+   Vérifier que `sensor.<name>_content_hash` passe à ce hash.
 5. **Boucle nominale** : activer le package HA. Forcer un changement de donnée
-   visible (ex. fixture) → l'écran se rafraîchit tout seul sous ~60 s.
+   visible (ex. fixture) → l'écran se rafraîchit tout seul sous ~60 s, les 2
+   sensors HA se rejoignent.
 6. **Pas de refresh inutile** : laisser tourner 20 min sans changement de donnée
-   visible → **aucun** rafraîchissement e-ink (`shown_hash` stable, compteur HA à 0).
+   visible → **aucun** rafraîchissement e-ink, hash de l'ESP stable, automation jamais déclenchée.
 7. **Pannes** :
-   - couper FastAPI → `sensor` `unavailable`, écran conservé ; relancer → reprise.
-   - couper HA → écran conservé ; relancer → resync.
-   - couper le Wi-Fi de l'ESP → au retour, une seule redraw, puis resync.
+   - couper FastAPI → `sensor.<name>_target_hash` `unavailable`, écran conservé ; relancer → reprise.
+   - couper HA → écran conservé ; relancer (trigger `homeassistant start`) → resync.
+   - couper le Wi-Fi de l'ESP → au retour, une seule redraw (`wifi.on_connect`), puis resync.
    - `esphome logs` : surveiller RAM, absence de reboot / watchdog sur 20+ cycles.
 8. **OTA** : modifier un `name:` trivial, `esphome run` par OTA (pas de deep sleep → doit marcher direct).
 9. **Verdict** :
@@ -540,10 +523,10 @@ ne jamais toucher à TRMNL avant le verdict du test.
 1. Le panneau tourne sous ESPHome et est adopté par Home Assistant.
 2. FastAPI reste la source de vérité du contenu ; Pillow celle du layout.
 3. Le firmware ne contient **aucune** logique métier, `global` persistée, ni machine à états.
-4. HA poll `/api/v1/display/meta` et déclenche `esphome.<name>_refresh` au changement de hash.
+4. HA poll `/api/v1/display/meta` et déclenche `esphome.<name>_refresh` quand le hash cible diffère du hash publié par l'ESP.
 5. Un hash identique n'entraîne **aucun** refresh e-paper.
 6. Un hash différent télécharge le BMP puis rafraîchit l'écran.
-7. `input_text.eink_dashboard_shown_hash` n'est mis à jour qu'après affichage réussi.
+7. Le `text_sensor` de l'ESP ne passe au nouveau hash qu'après affichage réussi (`"error"` sinon → retry).
 8. Panne backend → ancienne image conservée, reprise auto.
 9. Panne Home Assistant → affichage conservé, pas de blocage, resync au retour.
 10. L'écran V2 peut évoluer sans recompiler ESPHome (critère architectural majeur).
@@ -620,7 +603,7 @@ package HA** — modification Python/Pillow uniquement.
 | `online_image` gourmand en RAM sur ESP32-C3 | reboot / watchdog | test 20+ cycles avant validation ; BMP BINARY ; fallback PNG documenté |
 | BMP 1 bit Pillow mal décodé par ESPHome | image absente / corrompue | fallback `/image/dashboard.png` + `format: PNG` prêt |
 | collision de route `/image/dashboard.bmp` vs `/image/{name}` | 404 sur le BMP | inclure `display.router` avant `device.router` ; test dédié |
-| HA down au moment d'un changement | écran obsolète temporairement | resync automatique au retour (hash != input_text) |
+| HA down au moment d'un changement | écran obsolète temporairement | resync automatique au retour (trigger `homeassistant start` + les 2 hashs diffèrent) |
 | backend down | écran stale | `rest` sensor `unavailable` → pas de déclenchement ; dernière image conservée |
 | nom réel du service/entité ESPHome ≠ supposé | automation muette | checklist §11 : relever et ajuster le package après appairage |
 | suppression TRMNL trop tôt | rollback difficile | coexistence jusqu'au verdict terrain + 48 h |

@@ -1,0 +1,56 @@
+# Package Home Assistant — orchestration du dashboard e-ink Lyon.
+#
+# Rôle : détecter que le contenu métier a changé (hash servi par FastAPI) et,
+# seulement dans ce cas, demander à l'ESP de retélécharger + redessiner l'image.
+# Le hash réellement affiché est porté par l'ESP lui-même (text_sensor).
+#
+# Installation : voir homeassistant/README.md
+#
+# Entités attendues :
+#   sensor.eink_dashboard_target_hash    <- ce package (rest, poll FastAPI)
+#   sensor.eink_dashboard_content_hash   <- device ESPHome (text_sensor "Content hash")
+#   esphome.eink_dashboard_refresh       <- service exposé par le firmware
+# Adapter les noms si le device ESPHome n'est pas nommé « eink-dashboard ».
+
+rest:
+  - resource: !secret eink_dashboard_meta_url
+    scan_interval: 60
+    sensor:
+      - name: "Eink dashboard target hash"
+        unique_id: eink_dashboard_target_hash
+        value_template: "{{ value_json.content_hash }}"
+        json_attributes:
+          - refresh_seconds
+
+automation:
+  - alias: "Eink dashboard - refresh e-paper on content change"
+    id: eink_dashboard_refresh_on_change
+    trigger:
+      - trigger: state
+        entity_id: sensor.eink_dashboard_target_hash
+      - trigger: state
+        entity_id: sensor.eink_dashboard_content_hash
+      - trigger: homeassistant
+        event: start
+    condition:
+      - condition: template
+        value_template: >
+          {{ states('sensor.eink_dashboard_target_hash')
+             not in ['unknown', 'unavailable', 'None', ''] }}
+      - condition: template
+        value_template: >
+          {{ states('sensor.eink_dashboard_target_hash')
+             != states('sensor.eink_dashboard_content_hash') }}
+    action:
+      - service: esphome.eink_dashboard_refresh
+        data:
+          content_hash: "{{ states('sensor.eink_dashboard_target_hash') }}"
+    mode: single
+
+script:
+  eink_dashboard_force_refresh:
+    alias: "Eink dashboard - force refresh"
+    sequence:
+      - service: esphome.eink_dashboard_refresh
+        data:
+          content_hash: "{{ states('sensor.eink_dashboard_target_hash') }}"
