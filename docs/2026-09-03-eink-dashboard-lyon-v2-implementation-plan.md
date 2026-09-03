@@ -775,6 +775,16 @@ Ne pas mélanger la capture/mapping SIRI-SX et le redesign Pillow dans le même 
   T2 selon la convention T4/T7 (à confirmer sur une vraie perturbation T2).
 - `.env.example` et `tests/fixtures/dashboard_ok.toml` étendus.
 
+## Delta phase 10 — domaine et état V2 (Task 2)
+
+- `domain/disruptions.py` : `TransitDisruption` (frozen/slots) + `is_active(now)`
+  (période stricte ; dates absentes = actif ; début ou fin seul supporté).
+- `domain/weather.py` : `WeatherSnapshot` (température, `rain_at`, `reported_at`).
+- `state.py` : `DashboardState` gagne `tcl_disruptions` et `weather`. Aucune
+  refonte du stale nécessaire — `Store._slot` est déjà générique (`getattr`), le
+  scheduler tourne déjà une tâche par provider. Sémantique V1 conservée : un
+  échec garde la dernière bonne donnée et passe le slot en `error`.
+
 # 11. Sources techniques
 
 - Design V1 du projet : `docs/superpowers/specs/2026-09-02-eink-dashboard-lyon-design.md`

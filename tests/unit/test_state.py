@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
 from eink_dashboard.domain.bikes import BikeStation
+from eink_dashboard.domain.disruptions import TransitDisruption
 from eink_dashboard.domain.transit import Departure, StopBoard
+from eink_dashboard.domain.weather import WeatherSnapshot
 from eink_dashboard.state import Store
 
 T0 = datetime(2026, 9, 2, 8, 0, tzinfo=UTC)
@@ -116,3 +118,46 @@ def test_source_timestamp_drives_freshness_when_available() -> None:
 def test_age_seconds_is_none_without_data() -> None:
     store = Store()
     assert store.state.tcl.age_seconds(T0) is None
+
+
+def disruptions() -> tuple[TransitDisruption, ...]:
+    return (
+        TransitDisruption(
+            source_id="s1",
+            lines=("T2",),
+            summary="Trafic perturbé",
+            description="Trafic perturbé entre Jean Macé et Perrache.",
+            valid_from=T0 - timedelta(hours=1),
+            valid_until=T0 + timedelta(hours=2),
+            severity=None,
+            planned=None,
+        ),
+    )
+
+
+def weather() -> WeatherSnapshot:
+    return WeatherSnapshot(temperature_c=12.4, rain_at=None, reported_at=T0)
+
+
+def test_store_supports_four_independent_providers() -> None:
+    store = Store()
+    store.record_success("tcl", board(), T0)
+    store.record_success("velov", station(), T0)
+    store.record_success("tcl_disruptions", disruptions(), T0)
+    store.record_success("weather", weather(), T0)
+
+    store.record_failure("tcl_disruptions", "timeout", T0 + timedelta(seconds=60))
+
+    now = T0 + timedelta(seconds=60)
+    assert store.state.tcl.status_at(now, stale_after_seconds=180) == "ok"
+    assert store.state.velov.status_at(now, stale_after_seconds=180) == "ok"
+    assert store.state.weather.status_at(now, stale_after_seconds=1800) == "ok"
+    # Dernière bonne donnée conservée, provider en erreur.
+    assert store.state.tcl_disruptions.status_at(now, stale_after_seconds=360) == "degraded"
+    assert store.state.tcl_disruptions.data == disruptions()
+
+
+def test_new_store_reports_v2_providers_unavailable() -> None:
+    store = Store()
+    assert store.state.tcl_disruptions.status_at(T0, stale_after_seconds=360) == "unavailable"
+    assert store.state.weather.status_at(T0, stale_after_seconds=1800) == "unavailable"

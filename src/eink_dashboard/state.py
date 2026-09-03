@@ -3,7 +3,9 @@ from datetime import datetime
 from typing import Any, Literal
 
 from eink_dashboard.domain.bikes import BikeStation
+from eink_dashboard.domain.disruptions import TransitDisruption
 from eink_dashboard.domain.transit import StopBoard
+from eink_dashboard.domain.weather import WeatherSnapshot
 
 ProviderStatus = Literal["ok", "degraded", "stale", "unavailable"]
 
@@ -43,6 +45,14 @@ class DashboardState:
     )
     velov: ProviderResult[tuple[BikeStation, ...]] = field(
         default_factory=lambda: ProviderResult[tuple[BikeStation, ...]](name="velov")
+    )
+    tcl_disruptions: ProviderResult[tuple[TransitDisruption, ...]] = field(
+        default_factory=lambda: ProviderResult[tuple[TransitDisruption, ...]](
+            name="tcl_disruptions"
+        )
+    )
+    weather: ProviderResult[WeatherSnapshot] = field(
+        default_factory=lambda: ProviderResult[WeatherSnapshot](name="weather")
     )
 
 
