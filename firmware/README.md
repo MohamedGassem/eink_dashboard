@@ -103,12 +103,10 @@ Différences :
 - gel du contenu : de 09:00 à 21:00 le hash ne réagit qu'aux évènements
   (perturbation, Vélo'v bas) ; de **21:00 à 07:30 le hash est totalement figé**
   → aucun redessin la nuit, l'en-tête affiche « MAJ HH:MM ».
-- mesure batterie : pont diviseur /2 de la carte pilote, `output` GPIO6 (enable,
-  HIGH le temps de la lecture), `adc` GPIO1 `×2`. Exposé en
-  `sensor.*_tension_batterie` / `sensor.*_batterie` (%) / `binary_sensor.*_batterie_faible`.
-- pastille « batterie faible » dessinée sur l'e-paper quand la tension passe sous
-  ~3,55 V (masquée au-dessus de 3,65 V) ; le suffixe `-lowbat` sur le hash comparé
-  force le redraw d'apparition / disparition.
+
+**Pas de mesure de batterie** : le XIAO ESP32-C3 du panneau n'expose aucune broche
+ADC libre reliée à la batterie (sonde du 2026-09-04 : GPIO0/GPIO1 flottants). Il
+faudrait souder un pont diviseur ou ajouter une puce I²C (cf. plan §22).
 
 Utiliser le package HA **`homeassistant/eink_dashboard_battery.yaml`** (à la place
 de `eink_dashboard.yaml`) et renseigner `static_ip` / `gateway` / `subnet` dans

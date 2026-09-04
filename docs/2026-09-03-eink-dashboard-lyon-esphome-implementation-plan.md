@@ -704,36 +704,36 @@ n'économise qu'un réveil Wi-Fi/nuit contre une latence OTA doublée).
 
 ---
 
-## 22. Delta 2026-09-03d — migration mode batterie + mesure batterie
+## 22. Delta 2026-09-04 — migration mode batterie (deep sleep)
 
 Décision : passer le panneau en deep sleep pour de vrai (il tournait en fait le
 firmware secteur *sur batterie* → ~1 j d'autonomie).
 
-**Firmware `xiao-epaper-battery.yaml` (`esphome config` + `esphome compile` verts,
-RAM 13.8 % / Flash 57.2 %) :**
+**Fait en direct sur le Pi (`raspberrypi`, `~/eink_dashboard` + HA container) :**
 
-- report des correctifs matériels validés sur le firmware secteur : `friendly_name`
-  = « Eink Dashboard » (le tiret cassait le slug HA), `post_connect_roaming: false`
+- backend redéployé avec le delta §21 (`docker compose up -d --build`).
+- package HA `eink_dashboard.yaml` (secteur) → `eink_dashboard_battery.yaml`
+  copié dans `config/packages/eink_dashboard.yaml`, ancien sauvé en `.mains-bak`,
+  HA redémarré, `check_config` OK.
+- firmware `xiao-epaper-battery.yaml` flashé en OTA (192.168.1.42, IP fixe).
+  `esphome compile` vert (RAM 13.8 % / Flash 57.2 %). Cycle réveil → Wi-Fi/API →
+  compare hash → deep sleep `refresh_seconds` : OK en logs.
+- correctifs matériels reportés du firmware secteur : `friendly_name` = « Eink
+  Dashboard » (le tiret cassait le slug HA), `post_connect_roaming: false`
   (roaming Freebox qui redémarrait l'adaptateur ~50 s).
-- mesure batterie : pont diviseur /2 de la carte pilote Seeed, `output` GPIO6
-  (enable, HIGH le temps de la mesure), `adc` GPIO1 `×2`. Exposé en
-  `sensor.*_tension_batterie` (V) + `sensor.*_batterie` (%, courbe LiPo approx.,
-  `device_class: battery`) + `binary_sensor.*_batterie_faible`.
-- lecture pendant la fenêtre de 6 s déjà présente dans le cycle de réveil → zéro
-  temps de réveil en plus.
-- pastille « batterie faible » dessinée par le `lambda` du `display` (batterie +
-  « ! » dans la zone vide de l'en-tête) quand `battery_low` ; hystérésis 3.55 /
-  3.65 V portée par un global `restore_value: yes`.
-- `battery_low` ajoute le suffixe `-lowbat` au hash comparé → franchir le seuil
-  force **un** redraw (apparition/disparition de la pastille), sinon écran figé.
-  Rendu 100 % côté ESP, aucun changement backend.
 
-**Package HA `eink_dashboard_battery.yaml` :** `input_text` max 32 → 40 (suffixe
-`-lowbat`), automation `persistent_notification` sur `binary_sensor.*_batterie_faible`
-maintenu 10 min.
+**Mesure batterie : ABANDONNÉE (impossible sans mod matérielle).**
 
-**À valider sur matériel** (checklist §10bis, réécrite) : l'hypothèse broche
-enable = GPIO6 vient du cookbook PlatformIO Seeed EE0x ; à confirmer, repli GPIO7.
+Le XIAO ESP32-C3 du panneau a ses 4 broches ADC (GPIO2–5) toutes prises par
+l'e-paper. Restent GPIO0 / GPIO1 : sonde du 2026-09-04 (`_probe_battery.yaml`,
+supprimé) → **~0,5 V flottant sur les deux, aucune réaction à un enable GPIO6/
+GPIO7** → aucun pont diviseur câblé. Confirmé par le forum Seeed : sur la version
+C3, *« there are no more ADC ports available »*, *« nothing is prewired »*. Les
+users qui ont une jauge ont **soudé leur propre pont** ou ajouté une puce I²C
+(LC709203F / MAX17043).
 
-Non fait : affichage du `%` exact sur l'e-paper (seule la pastille « faible »
-apparaît) ; réglage fin de la courbe LiPo (à caler avec une vraie décharge).
+Le « A0 (GPIO1) / D5 (GPIO6) » de la doc Seeed s'applique à une autre carte de la
+famille (EE0x / C6 / S3), pas à ce panneau.
+
+Options si la jauge devient nécessaire : (a) souder un pont /2 BAT→GPIO0, (b)
+ajouter un MAX17043 en I²C sur GPIO6/GPIO7. Sinon : recharge au calendrier.
