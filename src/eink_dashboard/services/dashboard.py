@@ -124,11 +124,12 @@ def dashboard_payload(
 
 # Cadence de réveil du panneau (secondes), pensée pour le mode batterie / deep sleep.
 #   07:30 à 09:00 : décision du trajet, on rafraîchit souvent.
-#   09:00 à 21:00 : rien par défaut ; on raccourcit uniquement si un évènement est en cours.
+#   09:00 à 21:00 : réveil au moins tous les quarts d'heure (aligné sur le grain du
+#                   hash « coarse ») ; on raccourcit encore si un évènement est en cours.
 #   21:00 à 07:30 : on dort jusqu'au matin (plafonné : OTA, dérive d'horloge).
 PEAK_REFRESH = 180
 DAY_EVENT_REFRESH = 300
-DAY_IDLE_REFRESH = 1800
+DAY_IDLE_REFRESH = 15 * 60
 NIGHT_MAX_SLEEP = 4 * 3600
 
 _MORNING_START = 7 * 60 + 30

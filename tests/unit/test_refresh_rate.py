@@ -49,6 +49,10 @@ def test_daytime_without_an_event_uses_the_long_interval(hour: int, minute: int)
     assert refresh_rate_for(at(hour, minute), has_event=False) == DAY_IDLE_REFRESH
 
 
+def test_daytime_idle_interval_wakes_at_least_every_quarter_hour() -> None:
+    assert DAY_IDLE_REFRESH == 15 * 60
+
+
 @pytest.mark.parametrize("hour,minute", [(9, 0), (14, 30), (20, 59)])
 def test_daytime_with_an_event_uses_the_short_interval(hour: int, minute: int) -> None:
     assert refresh_rate_for(at(hour, minute), has_event=True) == DAY_EVENT_REFRESH

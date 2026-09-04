@@ -11,10 +11,11 @@ MAX_WAIT_MINUTES = 60
 MAX_NEXT_WAITS = 3
 MAX_ALERTS = 2
 
-# En journée (de 09:00 à 21:00 locale) le panneau n'est plus rafraîchi que sur
-# évènement : perturbation active ou station Vélo'v sous ce seuil. Le reste
-# (comptes à rebours, météo, nombre exact de vélos) ne modifie plus le hash,
-# donc n'entraîne plus de redessin e-ink. L'horodatage affiché se fige alors.
+# En journée (de 09:00 à 21:00 locale) le hash est « grossier » : les comptes à
+# rebours, la météo et le nombre exact de vélos ne le modifient plus. Il ne bouge
+# que sur évènement (perturbation active, station Vélo'v sous le seuil) ou au
+# passage d'un quart d'heure (``quarter_hour_key``) — garantissant un redessin
+# e-ink au moins tous les 15 min et un horodatage qui reste vivant.
 DAY_COARSE_START_MINUTE = 9 * 60
 DAY_COARSE_END_MINUTE = 21 * 60
 # La nuit (21:00 à 07:30 locale) le panneau est totalement figé : le hash ne
@@ -43,6 +44,13 @@ def in_night_window(now: datetime) -> bool:
     """Vrai de 21:00 à 07:30 (heure locale du ``now`` fourni)."""
     minutes = now.hour * 60 + now.minute
     return minutes >= NIGHT_START_MINUTE or minutes < NIGHT_END_MINUTE
+
+
+def quarter_hour_key(now: datetime) -> str:
+    """Identifiant du créneau de 15 min courant (``2026-09-04T10:15``). Sert de
+    grain au hash « coarse » de journée : il change quatre fois par heure, donc
+    le panneau se redessine au moins tous les quarts d'heure."""
+    return f"{now:%Y-%m-%dT%H}:{now.minute // 15 * 15:02d}"
 
 
 def format_wait(minutes: int) -> str:
@@ -92,10 +100,13 @@ class DashboardView:
     alerts: tuple[AlertRow, ...]
     weather: WeatherRow | None
     traffic_note: str
-    # De 09:00 à 21:00 : hash « grossier », ne réagit qu'aux évènements (cf. constantes).
+    # De 09:00 à 21:00 : hash « grossier », ne réagit qu'aux évènements et au
+    # quart d'heure (cf. constantes).
     coarse: bool = False
     # De 21:00 à 07:30 : hash figé, ne réagit plus à rien (implique ``coarse``).
     night: bool = False
+    # Créneau de 15 min courant ; n'entre dans le hash qu'en mode ``coarse`` non nuit.
+    quarter: str = ""
 
     def _hash_payload(self) -> dict[str, object]:
         if self.night:
@@ -103,6 +114,7 @@ class DashboardView:
         if self.coarse:
             return {
                 "coarse": True,
+                "quarter": self.quarter,
                 "bikes_low": [row.stale or row.bikes < LOW_BIKES_THRESHOLD for row in self.bikes],
                 "alerts": [[row.line, row.text] for row in self.alerts],
                 "traffic_note": self.traffic_note,
@@ -237,4 +249,5 @@ def build_view(
         traffic_note=traffic_note,
         coarse=night or (coarse_enabled and in_coarse_window(now)),
         night=night,
+        quarter=quarter_hour_key(now),
     )

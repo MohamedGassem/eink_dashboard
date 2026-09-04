@@ -388,6 +388,19 @@ def test_coarse_flag_is_only_set_inside_the_daytime_window() -> None:
     assert view_of(store_with().state, BEFORE_NINE).coarse is False
 
 
+def _hash_at(now: datetime, **kwargs: object) -> str:
+    store = _fresh_at(store_with(**kwargs), now)  # type: ignore[arg-type]
+    return view_of(store.state, now).content_hash()
+
+
+def test_daytime_hash_rotates_on_the_quarter_hour() -> None:
+    base = _hash_at(DAYTIME)
+    # Même quart d'heure (14:00 → 14:14) : rien ne bouge, pas de redessin.
+    assert _hash_at(DAYTIME + timedelta(minutes=14)) == base
+    # Quart d'heure suivant (14:15) : le hash tourne, le panneau se rafraîchit.
+    assert _hash_at(DAYTIME + timedelta(minutes=15)) != base
+
+
 # --- 7.7 mode nuit : hash figé de 21:00 à 07:30 ---------------------
 
 NIGHT = T0.replace(hour=23)
@@ -428,6 +441,11 @@ def test_night_hash_ignores_departure_countdowns() -> None:
     base = view_of(_night_store(offset=3).state, NIGHT)
     later = view_of(_night_store(offset=12).state, NIGHT)
     assert base.content_hash() == later.content_hash()
+
+
+def test_night_hash_ignores_the_quarter_hour() -> None:
+    base = _hash_at(NIGHT)
+    assert _hash_at(NIGHT + timedelta(minutes=20)) == base
 
 
 def test_night_hash_does_not_react_to_a_new_disruption() -> None:
